@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高校生向け求人・進学先検索アプリ</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>求人・進学先検索</h1>
+        <nav>
+            <button id="themeToggle" class="btn btn-secondary">🌙 ダークモード</button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- CSV アップロードセクション -->
+        <section id="uploadSection" class="upload-section">
+            <div class="container">
+                <h2>CSVファイルをアップロード</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <div class="upload-icon">📁</div>
+                        <p>CSVファイルをドラッグ&ドロップするか、クリックしてファイルを選択</p>
+                        <input type="file" id="fileInput" accept=".csv" style="display: none;">
+                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                            ファイルを選択
+                        </button>
+                    </div>
+                </div>
+                <div class="sample-links">
+                    <h3>サンプルCSV</h3>
+                    <button class="btn btn-link" onclick="loadSampleData('job')">就職サンプル</button>
+                    <button class="btn btn-link" onclick="loadSampleData('school')">進学サンプル</button>
+                </div>
+                <div id="uploadStatus" class="upload-status"></div>
+            </div>
+        </section>
+
+        <!-- データ表示セクション -->
+        <section id="dataSection" class="data-section" style="display: none;">
+            <div class="container">
+                <!-- フィルタパネル -->
+                <aside class="filter-panel">
+                    <h3>フィルタ</h3>
+                    <div id="filterContent"></div>
+                    <div class="active-filters">
+                        <h4>適用中のフィルタ</h4>
+                        <div id="activeFilterTags"></div>
+                        <button class="btn btn-secondary btn-small" onclick="clearAllFilters()">すべてクリア</button>
+                    </div>
+                </aside>
+
+                <!-- メインコンテンツ -->
+                <main class="main-content">
+                    <!-- 検索・ソートバー -->
+                    <div class="search-sort-bar">
+                        <div class="search-box">
+                            <input type="text" id="searchInput" placeholder="キーワードで検索..." />
+                            <button class="btn btn-primary" onclick="performSearch()">🔍</button>
+                        </div>
+                        <div class="sort-controls">
+                            <select id="sortSelect">
+                                <option value="">並び替え</option>
+                            </select>
+                            <button id="sortOrder" class="btn btn-secondary" onclick="toggleSortOrder()">⬆️</button>
+                        </div>
+                        <div class="view-controls">
+                            <span id="resultCount">0件の結果</span>
+                            <button class="btn btn-secondary" onclick="exportData('csv')">CSV出力</button>
+                            <button class="btn btn-secondary" onclick="exportData('json')">JSON出力</button>
+                        </div>
+                    </div>
+
+                    <!-- データカード表示エリア -->
+                    <div class="cards-container" id="cardsContainer">
+                        <!-- カードはJavaScriptで動的に生成 -->
+                    </div>
+
+                    <!-- ページネーション -->
+                    <div class="pagination" id="pagination">
+                        <!-- ページネーションはJavaScriptで動的に生成 -->
+                    </div>
+                </main>
+            </div>
+        </section>
+
+        <!-- お気に入りセクション -->
+        <section id="favoritesSection" class="favorites-section" style="display: none;">
+            <div class="container">
+                <h2>お気に入りリスト</h2>
+                <div id="favoritesContainer">
+                    <!-- お気に入りアイテムはJavaScriptで動的に生成 -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 詳細モーダル -->
+    <div id="detailModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="modalContent">
+                <!-- 詳細コンテンツはJavaScriptで動的に生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ナビゲーションメニュー -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="showSection('data')">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">ホーム</span>
+        </button>
+        <button class="nav-item" onclick="showSection('favorites')">
+            <span class="nav-icon">⭐</span>
+            <span class="nav-label">お気に入り</span>
+        </button>
+        <button class="nav-item" onclick="showSection('upload')">
+            <span class="nav-icon">📁</span>
+            <span class="nav-label">アップロード</span>
+        </button>
+    </nav>
+
+    <script src="script.js"></script>
+</body>
+</html>

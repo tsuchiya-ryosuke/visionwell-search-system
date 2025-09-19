@@ -27,15 +27,11 @@ let isAuthenticated = false;
 
 // DOM要素
 const elements = {
-    uploadSection: document.getElementById('uploadSection'),
     dataSection: document.getElementById('dataSection'),
-    favoritesSection: document.getElementById('favoritesSection'),
-    fileInput: document.getElementById('fileInput'),
-    uploadArea: document.getElementById('uploadArea'),
-    uploadStatus: document.getElementById('uploadStatus'),
     filterContent: document.getElementById('filterContent'),
     activeFilterTags: document.getElementById('activeFilterTags'),
     searchInput: document.getElementById('searchInput'),
+    favoriteFilter: document.getElementById('favoriteFilter'),
     sortSelect: document.getElementById('sortSelect'),
     sortOrder: document.getElementById('sortOrder'),
     resultCount: document.getElementById('resultCount'),
@@ -54,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeApp() {
     setupEventListeners();
     loadTheme();
-    setupDatasetSwitch();
+    setupDatasetTabs();
     loadDefaultDatasets();
 }
 
@@ -77,138 +73,37 @@ function enforceAuthentication() {
 
 // イベントリスナー設定
 function setupEventListeners() {
-    // ファイルアップロード
-    elements.fileInput.addEventListener('change', handleFileSelect);
-    elements.uploadArea.addEventListener('dragover', handleDragOver);
-    elements.uploadArea.addEventListener('drop', handleFileDrop);
-    elements.uploadArea.addEventListener('dragenter', handleDragEnter);
-    elements.uploadArea.addEventListener('dragleave', handleDragLeave);
-    
     // 検索
     elements.searchInput.addEventListener('input', debounce(performSearch, 300));
-    
+    if (elements.favoriteFilter) {
+        elements.favoriteFilter.addEventListener('change', applyFiltersAndSearch);
+    }
+
     // テーマトグル
     elements.themeToggle.addEventListener('click', toggleTheme);
-    
+
     // モーダルクリックアウトサイド
     elements.detailModal.addEventListener('click', function(e) {
         if (e.target === elements.detailModal) {
             closeModal();
         }
     });
-    
+
     // キーボードショートカット
     document.addEventListener('keydown', handleKeyboardShortcuts);
 }
 
-function setupDatasetSwitch() {
-    const buttons = document.querySelectorAll('.dataset-btn');
+function setupDatasetTabs() {
+    const tabs = document.querySelectorAll('.bottom-nav .nav-item');
 
-    buttons.forEach(button => {
-        button.addEventListener('click', () => {
-            const dataset = button.dataset.dataset;
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const dataset = tab.dataset.dataset;
             if (!dataset) {
                 return;
             }
-            loadSampleData(dataset);
+            activateDataset(dataset);
         });
-    });
-}
-
-// ファイル処理
-function handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (file) {
-        processFile(file);
-    }
-}
-
-function handleDragOver(e) {
-    e.preventDefault();
-}
-
-function handleDragEnter(e) {
-    e.preventDefault();
-    elements.uploadArea.classList.add('dragover');
-}
-
-function handleDragLeave(e) {
-    e.preventDefault();
-    elements.uploadArea.classList.remove('dragover');
-}
-
-function handleFileDrop(e) {
-    e.preventDefault();
-    elements.uploadArea.classList.remove('dragover');
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-        processFile(files[0]);
-    }
-}
-
-async function processFile(file) {
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-        showUploadStatus('CSVファイルを選択してください。', 'error');
-        return;
-    }
-    
-    showUploadStatus('ファイルを処理中...', 'info');
-    
-    try {
-        const text = await readFileAsText(file);
-        const data = parseCSV(text);
-        
-        if (data.length === 0) {
-            throw new Error('データが見つかりません。');
-        }
-        
-        // データタイプを判定
-        const dataType = detectDataType(data[0]);
-        
-        if (!dataType) {
-            throw new Error('サポートされていないCSV形式です。');
-        }
-        
-        originalData = data;
-        currentData = data;
-        currentDataType = dataType;
-        setActiveDatasetButton(dataType);
-
-        showUploadStatus(`${dataType === 'job' ? '就職' : '進学'}データを${data.length}件読み込みました。`, 'success');
-
-        // UI更新
-        setupDataView();
-        showSection('data');
-        
-    } catch (error) {
-        showUploadStatus(`エラー: ${error.message}`, 'error');
-    }
-}
-
-function readFileAsText(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        
-        reader.onload = function(e) {
-            let text = e.target.result;
-            
-            // 文字エンコード検出・変換（簡易版）
-            if (text.includes('\ufffd') || /[^\x00-\x7F]/.test(text.slice(0, 100))) {
-                // Shift_JISの可能性が高い場合の処理
-                const reader2 = new FileReader();
-                reader2.onload = function(e2) {
-                    resolve(e2.target.result);
-                };
-                reader2.onerror = reject;
-                reader2.readAsText(file, 'Shift_JIS');
-            } else {
-                resolve(text);
-            }
-        };
-        
-        reader.onerror = reject;
-        reader.readAsText(file, 'UTF-8');
     });
 }
 
@@ -255,35 +150,6 @@ function parseCSVLine(line) {
     
     result.push(current);
     return result;
-}
-
-function detectDataType(sampleRow) {
-    const headers = Object.keys(sampleRow).map(h => h.toLowerCase());
-    
-    // 就職データの判定
-    const jobKeywords = ['事業所', '職種', '給与', '賃金', '求人', '従業員'];
-    const schoolKeywords = ['学校', '学部', '学科', '入試', '受験', '偏差値'];
-    
-    const jobMatches = jobKeywords.filter(keyword => 
-        headers.some(header => header.includes(keyword))
-    ).length;
-    
-    const schoolMatches = schoolKeywords.filter(keyword => 
-        headers.some(header => header.includes(keyword))
-    ).length;
-    
-    if (jobMatches > schoolMatches) {
-        return 'job';
-    } else if (schoolMatches > jobMatches) {
-        return 'school';
-    }
-    
-    return null;
-}
-
-function showUploadStatus(message, type) {
-    elements.uploadStatus.textContent = message;
-    elements.uploadStatus.className = `upload-status ${type}`;
 }
 
 // データ表示設定
@@ -748,12 +614,17 @@ function applyFiltersAndSearch() {
     const searchTerm = elements.searchInput.value.toLowerCase().trim();
     if (searchTerm) {
         data = data.filter(row => {
-            return Object.values(row).some(value => 
+            return Object.values(row).some(value =>
                 value.toString().toLowerCase().includes(searchTerm)
             );
         });
     }
-    
+
+    if (isFavoritesOnly()) {
+        const favoriteStrings = new Set(favorites.map(item => JSON.stringify(item)));
+        data = data.filter(item => favoriteStrings.has(JSON.stringify(item)));
+    }
+
     // ソート適用
     if (sortField) {
         data.sort((a, b) => {
@@ -986,8 +857,10 @@ function toggleFavorite(index, button, event) {
         button.textContent = '★';
         button.classList.add('active');
     }
-    
+
     localStorage.setItem('favorites', JSON.stringify(favorites));
+
+    refreshAfterFavoriteChange();
 }
 
 // 詳細表示
@@ -1087,7 +960,7 @@ function showDetail(item) {
         
     } catch (error) {
         console.error('Error in showDetail:', error);
-        showUploadStatus('詳細表示でエラーが発生しました。データを再読み込みしてください。', 'error');
+        alert('詳細表示でエラーが発生しました。データを再読み込みしてください。');
     }
 }
 
@@ -1095,7 +968,7 @@ function toggleDetailFavorite(button) {
     const item = JSON.parse(button.getAttribute('data-item').replace(/&apos;/g, "'").replace(/&quot;/g, '"'));
     const itemString = JSON.stringify(item);
     const existingIndex = favorites.findIndex(fav => JSON.stringify(fav) === itemString);
-    
+
     if (existingIndex >= 0) {
         favorites.splice(existingIndex, 1);
         button.textContent = '☆ お気に入り';
@@ -1105,11 +978,23 @@ function toggleDetailFavorite(button) {
         button.textContent = '★ お気に入り';
         button.classList.add('active');
     }
-    
+
     localStorage.setItem('favorites', JSON.stringify(favorites));
-    
+
     // カード表示も更新
-    updateCards();
+    refreshAfterFavoriteChange();
+}
+
+function isFavoritesOnly() {
+    return elements.favoriteFilter && elements.favoriteFilter.checked;
+}
+
+function refreshAfterFavoriteChange() {
+    if (isFavoritesOnly()) {
+        applyFiltersAndSearch();
+    } else {
+        updateCards();
+    }
 }
 
 function shareItem(title) {
@@ -1345,12 +1230,31 @@ function downloadFile(content, filename, contentType) {
 }
 
 // サンプルデータロード
-async function loadSampleData(type, options = {}) {
+async function activateDataset(type) {
+    if (!type) {
+        return;
+    }
+
+    if (currentDataType === type && currentData.length > 0) {
+        setActiveDatasetTab(type);
+        return;
+    }
+
+    if (datasetCache[type]) {
+        applyDataset(type);
+        return;
+    }
+
+    await loadSampleData(type);
+}
+
+async function loadSampleData(type) {
     try {
         await ensureDataset(type);
-        applyDataset(type, { showStatus: options.showStatus !== false });
+        applyDataset(type);
     } catch (error) {
-        showUploadStatus(`エラー: ${error.message}`, 'error');
+        console.error(error);
+        alert(`データの読み込みに失敗しました: ${error.message}`);
     }
 }
 
@@ -1360,10 +1264,10 @@ async function loadDefaultDatasets() {
             ensureDataset('job'),
             ensureDataset('school')
         ]);
-        applyDataset('job', { showStatus: false });
+        applyDataset('job');
     } catch (error) {
         console.error(error);
-        showUploadStatus(`標準データの読み込みに失敗しました: ${error.message}`, 'error');
+        alert(`標準データの読み込みに失敗しました: ${error.message}`);
     }
 }
 
@@ -1415,7 +1319,7 @@ async function fetchDatasetFile(type) {
     return parseCSV(text);
 }
 
-function applyDataset(type, options = {}) {
+function applyDataset(type) {
     const data = datasetCache[type];
 
     if (!data) {
@@ -1437,8 +1341,10 @@ function applyDataset(type, options = {}) {
     updateActiveFilterTags();
 
     setupDataView();
-    showSection('data');
-    setActiveDatasetButton(type);
+    if (elements.dataSection) {
+        elements.dataSection.style.display = 'block';
+    }
+    setActiveDatasetTab(type);
 
     if (elements.sortOrder) {
         elements.sortOrder.textContent = '⬆️';
@@ -1448,73 +1354,17 @@ function applyDataset(type, options = {}) {
         elements.sortSelect.value = '';
     }
 
-    if (options.showStatus) {
-        const label = DATASET_LABELS[type] || '';
-        showUploadStatus(`${label}データを${data.length}件読み込みました。`, 'success');
-    }
 }
 
-function setActiveDatasetButton(type) {
-    const buttons = document.querySelectorAll('.dataset-btn');
+function setActiveDatasetTab(type) {
+    const tabs = document.querySelectorAll('.bottom-nav .nav-item');
 
-    buttons.forEach(button => {
-        if (button.dataset.dataset === type) {
-            button.classList.add('active');
+    tabs.forEach(tab => {
+        if (tab.dataset.dataset === type) {
+            tab.classList.add('active');
         } else {
-            button.classList.remove('active');
+            tab.classList.remove('active');
         }
-    });
-}
-
-// セクション切り替え
-function showSection(section) {
-    // すべてのセクションを非表示
-    elements.uploadSection.style.display = 'none';
-    elements.dataSection.style.display = 'none';
-    elements.favoritesSection.style.display = 'none';
-    
-    // ナビゲーションの更新
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    // 指定されたセクションを表示
-    if (section === 'upload') {
-        elements.uploadSection.style.display = 'block';
-        document.querySelector('.nav-item[onclick="showSection(\'upload\')"]').classList.add('active');
-    } else if (section === 'data') {
-        if (currentData.length > 0) {
-            elements.dataSection.style.display = 'block';
-            document.querySelector('.nav-item[onclick="showSection(\'data\')"]').classList.add('active');
-        } else {
-            showSection('upload');
-        }
-    } else if (section === 'favorites') {
-        showFavorites();
-        elements.favoritesSection.style.display = 'block';
-        document.querySelector('.nav-item[onclick="showSection(\'favorites\')"]').classList.add('active');
-    }
-}
-
-function showFavorites() {
-    const container = document.getElementById('favoritesContainer');
-    
-    if (favorites.length === 0) {
-        container.innerHTML = '<p>お気に入りに登録されているアイテムはありません。</p>';
-        return;
-    }
-    
-    container.innerHTML = '';
-    
-    favorites.forEach((item, index) => {
-        const card = createCard(item, index);
-        card.querySelector('.card-favorite').onclick = (e) => {
-            e.stopPropagation();
-            favorites.splice(index, 1);
-            localStorage.setItem('favorites', JSON.stringify(favorites));
-            showFavorites();
-        };
-        container.appendChild(card);
     });
 }
 

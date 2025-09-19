@@ -15,31 +15,8 @@
     </header>
 
     <main>
-        <!-- CSV アップロードセクション -->
-        <section id="uploadSection" class="upload-section">
-            <div class="container">
-                <h2>CSVファイルをアップロード</h2>
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-content">
-                        <div class="upload-icon">📁</div>
-                        <p>CSVファイルをドラッグ&ドロップするか、クリックしてファイルを選択</p>
-                        <input type="file" id="fileInput" accept=".csv" style="display: none;">
-                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
-                            ファイルを選択
-                        </button>
-                    </div>
-                </div>
-                <div class="sample-links">
-                    <h3>サンプルCSV</h3>
-                    <button class="btn btn-link" onclick="loadSampleData('job')">就職サンプル</button>
-                    <button class="btn btn-link" onclick="loadSampleData('school')">進学サンプル</button>
-                </div>
-                <div id="uploadStatus" class="upload-status"></div>
-            </div>
-        </section>
-
         <!-- データ表示セクション -->
-        <section id="dataSection" class="data-section" style="display: none;">
+        <section id="dataSection" class="data-section">
             <div class="container">
                 <!-- フィルタパネル -->
                 <aside class="filter-panel">
@@ -57,13 +34,14 @@
                     <!-- 検索・ソートバー -->
                     <div class="search-sort-bar">
                         <div class="search-box">
-                            <input type="text" id="searchInput" placeholder="キーワードで検索..." />
-                            <button class="btn btn-primary" onclick="performSearch()">🔍</button>
-                        </div>
-                        <div class="dataset-switch" id="datasetSwitch">
-                            <span class="dataset-label">表示データ:</span>
-                            <button class="btn btn-secondary dataset-btn active" data-dataset="job">就職データ</button>
-                            <button class="btn btn-secondary dataset-btn" data-dataset="school">進学データ</button>
+                            <div class="search-input-group">
+                                <input type="text" id="searchInput" placeholder="キーワードで検索..." />
+                                <button class="btn btn-primary" onclick="performSearch()">🔍</button>
+                            </div>
+                            <label class="favorite-filter">
+                                <input type="checkbox" id="favoriteFilter" />
+                                <span>⭐ お気に入りのみ</span>
+                            </label>
                         </div>
                         <div class="sort-controls">
                             <select id="sortSelect">
@@ -90,16 +68,6 @@
                 </main>
             </div>
         </section>
-
-        <!-- お気に入りセクション -->
-        <section id="favoritesSection" class="favorites-section" style="display: none;">
-            <div class="container">
-                <h2>お気に入りリスト</h2>
-                <div id="favoritesContainer">
-                    <!-- お気に入りアイテムはJavaScriptで動的に生成 -->
-                </div>
-            </div>
-        </section>
     </main>
 
     <!-- 詳細モーダル -->
@@ -114,17 +82,13 @@
 
     <!-- ナビゲーションメニュー -->
     <nav class="bottom-nav">
-        <button class="nav-item active" onclick="showSection('data')">
-            <span class="nav-icon">🏠</span>
-            <span class="nav-label">ホーム</span>
+        <button class="nav-item active" data-dataset="job">
+            <span class="nav-icon">💼</span>
+            <span class="nav-label">就職</span>
         </button>
-        <button class="nav-item" onclick="showSection('favorites')">
-            <span class="nav-icon">⭐</span>
-            <span class="nav-label">お気に入り</span>
-        </button>
-        <button class="nav-item" onclick="showSection('upload')">
-            <span class="nav-icon">📁</span>
-            <span class="nav-label">アップロード</span>
+        <button class="nav-item" data-dataset="school">
+            <span class="nav-icon">🎓</span>
+            <span class="nav-label">進学</span>
         </button>
     </nav>
 

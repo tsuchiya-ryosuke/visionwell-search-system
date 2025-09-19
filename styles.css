@@ -106,6 +106,12 @@ header h1 {
     box-shadow: var(--shadow-hover);
 }
 
+.btn.active {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    box-shadow: var(--shadow-hover);
+}
+
 .btn-primary {
     background-color: var(--primary-color);
 }
@@ -135,77 +141,6 @@ header h1 {
     background: none;
     color: var(--primary-color);
     text-decoration: underline;
-}
-
-/* アップロードセクション */
-.upload-section {
-    padding: 40px 0;
-    min-height: calc(100vh - 200px);
-    display: flex;
-    align-items: center;
-}
-
-.upload-area {
-    border: 2px dashed var(--border-color);
-    border-radius: 12px;
-    padding: 60px 40px;
-    text-align: center;
-    background-color: var(--surface-color);
-    transition: all 0.3s ease;
-    margin-bottom: 30px;
-}
-
-.upload-area:hover {
-    border-color: var(--primary-color);
-    background-color: rgba(52, 152, 219, 0.05);
-}
-
-.upload-area.dragover {
-    border-color: var(--primary-color);
-    background-color: rgba(52, 152, 219, 0.1);
-}
-
-.upload-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-}
-
-.upload-icon {
-    font-size: 48px;
-    opacity: 0.6;
-}
-
-.sample-links {
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-.sample-links h3 {
-    margin-bottom: 10px;
-    color: var(--text-secondary);
-}
-
-.upload-status {
-    padding: 15px;
-    border-radius: 6px;
-    margin-top: 20px;
-    display: none;
-}
-
-.upload-status.success {
-    background-color: rgba(39, 174, 96, 0.1);
-    border: 1px solid var(--success-color);
-    color: var(--success-color);
-    display: block;
-}
-
-.upload-status.error {
-    background-color: rgba(231, 76, 60, 0.1);
-    border: 1px solid var(--danger-color);
-    color: var(--danger-color);
-    display: block;
 }
 
 /* データセクション */
@@ -464,11 +399,20 @@ header h1 {
 
 .search-box {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
     flex: 1;
-    min-width: 250px;
+    min-width: 260px;
 }
 
-.search-box input {
+.search-input-group {
+    display: flex;
+    flex: 1;
+    min-width: 240px;
+}
+
+.search-input-group input {
     flex: 1;
     padding: 10px;
     border: 1px solid var(--border-color);
@@ -477,30 +421,30 @@ header h1 {
     color: var(--text-color);
 }
 
-.search-box button {
+.search-input-group button {
     border-radius: 0 6px 6px 0;
+}
+
+.favorite-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.favorite-filter input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color);
 }
 
 .sort-controls {
     display: flex;
     gap: 8px;
     align-items: center;
-}
-
-.dataset-switch {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.dataset-label {
-    font-size: 14px;
-    color: var(--text-secondary);
-}
-
-.dataset-btn.active {
-    background-color: var(--primary-color);
 }
 
 .sort-controls select {
@@ -1081,10 +1025,6 @@ header h1 {
         grid-template-columns: 1fr;
     }
     
-    .upload-area {
-        padding: 25px 15px;
-    }
-    
     .modal-content {
         margin: 10px;
         max-height: 95vh;
@@ -1177,14 +1117,6 @@ header h1 {
 @media (max-width: 480px) {
     .container {
         padding: 0 12px;
-    }
-    
-    .upload-area {
-        padding: 20px 12px;
-    }
-    
-    .upload-icon {
-        font-size: 32px;
     }
     
     .card {

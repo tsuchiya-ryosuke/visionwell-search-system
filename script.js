@@ -1395,7 +1395,23 @@ async function fetchDatasetFile(type) {
         throw new Error('サンプルデータの読み込みに失敗しました。');
     }
 
-    const text = await response.text();
+    const buffer = await response.arrayBuffer();
+    let text;
+
+    try {
+        // UTF-8でデコード（失敗した場合は例外を投げる）
+        const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+        text = utf8Decoder.decode(buffer);
+    } catch (utf8Error) {
+        try {
+            // Shift_JISで再デコード
+            const sjisDecoder = new TextDecoder('shift_jis');
+            text = sjisDecoder.decode(buffer);
+        } catch (sjisError) {
+            throw new Error('サンプルデータの文字コードを認識できませんでした。');
+        }
+    }
+
     return parseCSV(text);
 }
 

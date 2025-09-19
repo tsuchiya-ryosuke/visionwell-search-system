@@ -267,18 +267,18 @@ function createFilterHTML(filter) {
             html += `
                 <div class="salary-range-filter">
                     <div class="salary-buttons">
+                        <button type="button" class="salary-btn" onclick="setSalaryRange('${filter.field}', 0, 150000)">15万以下</button>
                         <button type="button" class="salary-btn" onclick="setSalaryRange('${filter.field}', 150000, 200000)">15万〜20万</button>
                         <button type="button" class="salary-btn" onclick="setSalaryRange('${filter.field}', 200000, 250000)">20万〜25万</button>
                         <button type="button" class="salary-btn" onclick="setSalaryRange('${filter.field}', 250000, 300000)">25万〜30万</button>
-                        <button type="button" class="salary-btn" onclick="setSalaryRange('${filter.field}', 300000, 500000)">30万以上</button>
                     </div>
                     <div class="salary-custom-range">
-                        <input type="number" id="filter_${fieldId}_min" placeholder="最低月給" 
-                               min="150000" max="500000" step="10000"
+                        <input type="number" id="filter_${fieldId}_min" placeholder="最低月給"
+                               min="0" max="500000" step="10000"
                                onchange="updateRangeFilter('${filter.field}', 'min', this.value)">
                         <span>円 〜</span>
                         <input type="number" id="filter_${fieldId}_max" placeholder="最高月給"
-                               min="150000" max="500000" step="10000"
+                               min="0" max="500000" step="10000"
                                onchange="updateRangeFilter('${filter.field}', 'max', this.value)">
                         <span>円</span>
                     </div>
@@ -387,7 +387,7 @@ function getFilterConfig(dataType) {
                 type: 'salary_range',
                 priority: 1,
                 description: '希望する月給の範囲を指定',
-                min: 150000,
+                min: 0,
                 max: 500000,
                 step: 10000
             },

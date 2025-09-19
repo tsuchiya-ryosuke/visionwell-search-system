@@ -60,6 +60,11 @@
                             <input type="text" id="searchInput" placeholder="キーワードで検索..." />
                             <button class="btn btn-primary" onclick="performSearch()">🔍</button>
                         </div>
+                        <div class="dataset-switch" id="datasetSwitch">
+                            <span class="dataset-label">表示データ:</span>
+                            <button class="btn btn-secondary dataset-btn active" data-dataset="job">就職データ</button>
+                            <button class="btn btn-secondary dataset-btn" data-dataset="school">進学データ</button>
+                        </div>
                         <div class="sort-controls">
                             <select id="sortSelect">
                                 <option value="">並び替え</option>

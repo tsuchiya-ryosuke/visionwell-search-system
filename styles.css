@@ -487,6 +487,22 @@ header h1 {
     align-items: center;
 }
 
+.dataset-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.dataset-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.dataset-btn.active {
+    background-color: var(--primary-color);
+}
+
 .sort-controls select {
     padding: 8px;
     border: 1px solid var(--border-color);

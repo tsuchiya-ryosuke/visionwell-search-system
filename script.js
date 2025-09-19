@@ -10,6 +10,18 @@ let sortOrder = 'asc';
 let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
 let currentFilters = {};
 
+const DATASET_FILES = {
+    job: 'data/就職.csv',
+    school: 'data/進学.csv'
+};
+
+const DATASET_LABELS = {
+    job: '就職',
+    school: '進学'
+};
+
+let datasetCache = {};
+
 const AUTH_PASSWORD = 'visionwell1001';
 let isAuthenticated = false;
 
@@ -42,7 +54,8 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeApp() {
     setupEventListeners();
     loadTheme();
-    checkForSampleData();
+    setupDatasetSwitch();
+    loadDefaultDatasets();
 }
 
 function enforceAuthentication() {
@@ -86,6 +99,20 @@ function setupEventListeners() {
     
     // キーボードショートカット
     document.addEventListener('keydown', handleKeyboardShortcuts);
+}
+
+function setupDatasetSwitch() {
+    const buttons = document.querySelectorAll('.dataset-btn');
+
+    buttons.forEach(button => {
+        button.addEventListener('click', () => {
+            const dataset = button.dataset.dataset;
+            if (!dataset) {
+                return;
+            }
+            loadSampleData(dataset);
+        });
+    });
 }
 
 // ファイル処理
@@ -146,9 +173,10 @@ async function processFile(file) {
         originalData = data;
         currentData = data;
         currentDataType = dataType;
-        
+        setActiveDatasetButton(dataType);
+
         showUploadStatus(`${dataType === 'job' ? '就職' : '進学'}データを${data.length}件読み込みました。`, 'success');
-        
+
         // UI更新
         setupDataView();
         showSection('data');
@@ -1317,47 +1345,109 @@ function downloadFile(content, filename, contentType) {
 }
 
 // サンプルデータロード
-async function loadSampleData(type) {
+async function loadSampleData(type, options = {}) {
     try {
-        const filename = type === 'job' ? '就職.csv' : '進学.csv';
-        const response = await fetch(`data/${filename}`);
-        
-        if (!response.ok) {
-            throw new Error('サンプルデータの読み込みに失敗しました。');
-        }
-        
-        const text = await response.text();
-        const data = parseCSV(text);
-        
-        if (data.length === 0) {
-            throw new Error('サンプルデータが空です。');
-        }
-        
-        originalData = data;
-        currentData = data;
-        currentDataType = type;
-        
-        showUploadStatus(`${type === 'job' ? '就職' : '進学'}サンプルデータを${data.length}件読み込みました。`, 'success');
-        
-        setupDataView();
-        showSection('data');
-        
+        await ensureDataset(type);
+        applyDataset(type, { showStatus: options.showStatus !== false });
     } catch (error) {
         showUploadStatus(`エラー: ${error.message}`, 'error');
     }
 }
 
-function checkForSampleData() {
-    // ページ読み込み時にサンプルデータの存在をチェック
-    fetch('data/就職.csv')
-        .then(response => {
-            if (response.ok) {
-                document.querySelector('.sample-links').style.display = 'block';
-            }
-        })
-        .catch(() => {
-            document.querySelector('.sample-links').style.display = 'none';
-        });
+async function loadDefaultDatasets() {
+    try {
+        await Promise.all([
+            ensureDataset('job'),
+            ensureDataset('school')
+        ]);
+        applyDataset('job', { showStatus: false });
+    } catch (error) {
+        console.error(error);
+        showUploadStatus(`標準データの読み込みに失敗しました: ${error.message}`, 'error');
+    }
+}
+
+async function ensureDataset(type) {
+    if (datasetCache[type]) {
+        return datasetCache[type];
+    }
+
+    const data = await fetchDatasetFile(type);
+
+    if (data.length === 0) {
+        throw new Error('サンプルデータが空です。');
+    }
+
+    datasetCache[type] = data;
+    return data;
+}
+
+async function fetchDatasetFile(type) {
+    const filename = DATASET_FILES[type];
+
+    if (!filename) {
+        throw new Error('不明なデータセットです。');
+    }
+
+    const response = await fetch(filename);
+
+    if (!response.ok) {
+        throw new Error('サンプルデータの読み込みに失敗しました。');
+    }
+
+    const text = await response.text();
+    return parseCSV(text);
+}
+
+function applyDataset(type, options = {}) {
+    const data = datasetCache[type];
+
+    if (!data) {
+        throw new Error('データが読み込まれていません。');
+    }
+
+    originalData = data;
+    currentData = data;
+    currentDataType = type;
+    currentFilters = {};
+    filteredData = [];
+    sortField = '';
+    sortOrder = 'asc';
+    currentPage = 1;
+
+    if (elements.searchInput) {
+        elements.searchInput.value = '';
+    }
+    updateActiveFilterTags();
+
+    setupDataView();
+    showSection('data');
+    setActiveDatasetButton(type);
+
+    if (elements.sortOrder) {
+        elements.sortOrder.textContent = '⬆️';
+    }
+
+    if (elements.sortSelect) {
+        elements.sortSelect.value = '';
+    }
+
+    if (options.showStatus) {
+        const label = DATASET_LABELS[type] || '';
+        showUploadStatus(`${label}データを${data.length}件読み込みました。`, 'success');
+    }
+}
+
+function setActiveDatasetButton(type) {
+    const buttons = document.querySelectorAll('.dataset-btn');
+
+    buttons.forEach(button => {
+        if (button.dataset.dataset === type) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
 }
 
 // セクション切り替え

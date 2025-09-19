@@ -10,6 +10,9 @@ let sortOrder = 'asc';
 let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
 let currentFilters = {};
 
+const AUTH_PASSWORD = 'visionwell1001';
+let isAuthenticated = false;
+
 // DOM要素
 const elements = {
     uploadSection: document.getElementById('uploadSection'),
@@ -33,10 +36,31 @@ const elements = {
 
 // 初期化
 document.addEventListener('DOMContentLoaded', function() {
+    enforceAuthentication();
+});
+
+function initializeApp() {
     setupEventListeners();
     loadTheme();
     checkForSampleData();
-});
+}
+
+function enforceAuthentication() {
+    while (!isAuthenticated) {
+        const input = prompt('このアプリを利用するにはパスワードが必要です。パスワードを入力してください。');
+
+        if (input === null) {
+            alert('パスワードが入力されるまでアプリを利用できません。');
+        } else if (input === AUTH_PASSWORD) {
+            isAuthenticated = true;
+            document.body.classList.remove('auth-locked');
+            initializeApp();
+            break;
+        } else {
+            alert('パスワードが違います。');
+        }
+    }
+}
 
 // イベントリスナー設定
 function setupEventListeners() {

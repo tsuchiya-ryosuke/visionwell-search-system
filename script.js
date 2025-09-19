@@ -29,13 +29,13 @@ let isAuthenticated = false;
 const elements = {
     uploadSection: document.getElementById('uploadSection'),
     dataSection: document.getElementById('dataSection'),
-    favoritesSection: document.getElementById('favoritesSection'),
     fileInput: document.getElementById('fileInput'),
     uploadArea: document.getElementById('uploadArea'),
     uploadStatus: document.getElementById('uploadStatus'),
     filterContent: document.getElementById('filterContent'),
     activeFilterTags: document.getElementById('activeFilterTags'),
     searchInput: document.getElementById('searchInput'),
+    favoriteFilter: document.getElementById('favoriteFilter'),
     sortSelect: document.getElementById('sortSelect'),
     sortOrder: document.getElementById('sortOrder'),
     resultCount: document.getElementById('resultCount'),
@@ -43,7 +43,8 @@ const elements = {
     pagination: document.getElementById('pagination'),
     detailModal: document.getElementById('detailModal'),
     modalContent: document.getElementById('modalContent'),
-    themeToggle: document.getElementById('themeToggle')
+    themeToggle: document.getElementById('themeToggle'),
+    uploadToggle: document.getElementById('uploadToggle')
 };
 
 // 初期化
@@ -54,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeApp() {
     setupEventListeners();
     loadTheme();
-    setupDatasetSwitch();
+    setupDatasetTabs();
     loadDefaultDatasets();
 }
 
@@ -83,34 +84,48 @@ function setupEventListeners() {
     elements.uploadArea.addEventListener('drop', handleFileDrop);
     elements.uploadArea.addEventListener('dragenter', handleDragEnter);
     elements.uploadArea.addEventListener('dragleave', handleDragLeave);
-    
+
     // 検索
     elements.searchInput.addEventListener('input', debounce(performSearch, 300));
-    
+    if (elements.favoriteFilter) {
+        elements.favoriteFilter.addEventListener('change', applyFiltersAndSearch);
+    }
+
     // テーマトグル
     elements.themeToggle.addEventListener('click', toggleTheme);
-    
+
+    if (elements.uploadToggle) {
+        elements.uploadToggle.addEventListener('click', () => {
+            const isUploadVisible = elements.uploadSection.style.display !== 'none';
+            if (isUploadVisible) {
+                showSection('data');
+            } else {
+                showSection('upload');
+            }
+        });
+    }
+
     // モーダルクリックアウトサイド
     elements.detailModal.addEventListener('click', function(e) {
         if (e.target === elements.detailModal) {
             closeModal();
         }
     });
-    
+
     // キーボードショートカット
     document.addEventListener('keydown', handleKeyboardShortcuts);
 }
 
-function setupDatasetSwitch() {
-    const buttons = document.querySelectorAll('.dataset-btn');
+function setupDatasetTabs() {
+    const tabs = document.querySelectorAll('.bottom-nav .nav-item');
 
-    buttons.forEach(button => {
-        button.addEventListener('click', () => {
-            const dataset = button.dataset.dataset;
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const dataset = tab.dataset.dataset;
             if (!dataset) {
                 return;
             }
-            loadSampleData(dataset);
+            activateDataset(dataset);
         });
     });
 }
@@ -173,7 +188,8 @@ async function processFile(file) {
         originalData = data;
         currentData = data;
         currentDataType = dataType;
-        setActiveDatasetButton(dataType);
+        datasetCache[dataType] = data;
+        setActiveDatasetTab(dataType);
 
         showUploadStatus(`${dataType === 'job' ? '就職' : '進学'}データを${data.length}件読み込みました。`, 'success');
 
@@ -748,12 +764,17 @@ function applyFiltersAndSearch() {
     const searchTerm = elements.searchInput.value.toLowerCase().trim();
     if (searchTerm) {
         data = data.filter(row => {
-            return Object.values(row).some(value => 
+            return Object.values(row).some(value =>
                 value.toString().toLowerCase().includes(searchTerm)
             );
         });
     }
-    
+
+    if (isFavoritesOnly()) {
+        const favoriteStrings = new Set(favorites.map(item => JSON.stringify(item)));
+        data = data.filter(item => favoriteStrings.has(JSON.stringify(item)));
+    }
+
     // ソート適用
     if (sortField) {
         data.sort((a, b) => {
@@ -986,8 +1007,10 @@ function toggleFavorite(index, button, event) {
         button.textContent = '★';
         button.classList.add('active');
     }
-    
+
     localStorage.setItem('favorites', JSON.stringify(favorites));
+
+    refreshAfterFavoriteChange();
 }
 
 // 詳細表示
@@ -1095,7 +1118,7 @@ function toggleDetailFavorite(button) {
     const item = JSON.parse(button.getAttribute('data-item').replace(/&apos;/g, "'").replace(/&quot;/g, '"'));
     const itemString = JSON.stringify(item);
     const existingIndex = favorites.findIndex(fav => JSON.stringify(fav) === itemString);
-    
+
     if (existingIndex >= 0) {
         favorites.splice(existingIndex, 1);
         button.textContent = '☆ お気に入り';
@@ -1105,11 +1128,23 @@ function toggleDetailFavorite(button) {
         button.textContent = '★ お気に入り';
         button.classList.add('active');
     }
-    
+
     localStorage.setItem('favorites', JSON.stringify(favorites));
-    
+
     // カード表示も更新
-    updateCards();
+    refreshAfterFavoriteChange();
+}
+
+function isFavoritesOnly() {
+    return elements.favoriteFilter && elements.favoriteFilter.checked;
+}
+
+function refreshAfterFavoriteChange() {
+    if (isFavoritesOnly()) {
+        applyFiltersAndSearch();
+    } else {
+        updateCards();
+    }
 }
 
 function shareItem(title) {
@@ -1345,6 +1380,25 @@ function downloadFile(content, filename, contentType) {
 }
 
 // サンプルデータロード
+async function activateDataset(type) {
+    if (!type) {
+        return;
+    }
+
+    if (currentDataType === type && currentData.length > 0) {
+        setActiveDatasetTab(type);
+        showSection('data');
+        return;
+    }
+
+    if (datasetCache[type]) {
+        applyDataset(type, { showStatus: false });
+        return;
+    }
+
+    await loadSampleData(type, { showStatus: false });
+}
+
 async function loadSampleData(type, options = {}) {
     try {
         await ensureDataset(type);
@@ -1438,7 +1492,7 @@ function applyDataset(type, options = {}) {
 
     setupDataView();
     showSection('data');
-    setActiveDatasetButton(type);
+    setActiveDatasetTab(type);
 
     if (elements.sortOrder) {
         elements.sortOrder.textContent = '⬆️';
@@ -1454,68 +1508,41 @@ function applyDataset(type, options = {}) {
     }
 }
 
-function setActiveDatasetButton(type) {
-    const buttons = document.querySelectorAll('.dataset-btn');
+function setActiveDatasetTab(type) {
+    const tabs = document.querySelectorAll('.bottom-nav .nav-item');
 
-    buttons.forEach(button => {
-        if (button.dataset.dataset === type) {
-            button.classList.add('active');
+    tabs.forEach(tab => {
+        if (tab.dataset.dataset === type) {
+            tab.classList.add('active');
         } else {
-            button.classList.remove('active');
+            tab.classList.remove('active');
         }
     });
 }
 
 // セクション切り替え
 function showSection(section) {
-    // すべてのセクションを非表示
-    elements.uploadSection.style.display = 'none';
-    elements.dataSection.style.display = 'none';
-    elements.favoritesSection.style.display = 'none';
-    
-    // ナビゲーションの更新
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    // 指定されたセクションを表示
-    if (section === 'upload') {
-        elements.uploadSection.style.display = 'block';
-        document.querySelector('.nav-item[onclick="showSection(\'upload\')"]').classList.add('active');
-    } else if (section === 'data') {
-        if (currentData.length > 0) {
-            elements.dataSection.style.display = 'block';
-            document.querySelector('.nav-item[onclick="showSection(\'data\')"]').classList.add('active');
-        } else {
-            showSection('upload');
-        }
-    } else if (section === 'favorites') {
-        showFavorites();
-        elements.favoritesSection.style.display = 'block';
-        document.querySelector('.nav-item[onclick="showSection(\'favorites\')"]').classList.add('active');
-    }
-}
+    const hasData = currentData.length > 0;
+    const isUpload = section === 'upload';
 
-function showFavorites() {
-    const container = document.getElementById('favoritesContainer');
-    
-    if (favorites.length === 0) {
-        container.innerHTML = '<p>お気に入りに登録されているアイテムはありません。</p>';
+    if (elements.uploadToggle) {
+        elements.uploadToggle.classList.toggle('active', isUpload);
+        elements.uploadToggle.setAttribute('aria-pressed', isUpload);
+    }
+
+    if (isUpload) {
+        elements.uploadSection.style.display = 'block';
+        elements.dataSection.style.display = 'none';
         return;
     }
-    
-    container.innerHTML = '';
-    
-    favorites.forEach((item, index) => {
-        const card = createCard(item, index);
-        card.querySelector('.card-favorite').onclick = (e) => {
-            e.stopPropagation();
-            favorites.splice(index, 1);
-            localStorage.setItem('favorites', JSON.stringify(favorites));
-            showFavorites();
-        };
-        container.appendChild(card);
-    });
+
+    if (hasData) {
+        elements.uploadSection.style.display = 'none';
+        elements.dataSection.style.display = 'block';
+    } else {
+        elements.uploadSection.style.display = 'block';
+        elements.dataSection.style.display = 'none';
+    }
 }
 
 // テーマ切り替え

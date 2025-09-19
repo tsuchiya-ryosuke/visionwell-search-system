@@ -10,37 +10,13 @@
     <header>
         <h1>求人・進学先検索</h1>
         <nav>
-            <button id="uploadToggle" class="btn btn-secondary">📁 アップロード</button>
             <button id="themeToggle" class="btn btn-secondary">🌙 ダークモード</button>
         </nav>
     </header>
 
     <main>
-        <!-- CSV アップロードセクション -->
-        <section id="uploadSection" class="upload-section">
-            <div class="container">
-                <h2>CSVファイルをアップロード</h2>
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-content">
-                        <div class="upload-icon">📁</div>
-                        <p>CSVファイルをドラッグ&ドロップするか、クリックしてファイルを選択</p>
-                        <input type="file" id="fileInput" accept=".csv" style="display: none;">
-                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
-                            ファイルを選択
-                        </button>
-                    </div>
-                </div>
-                <div class="sample-links">
-                    <h3>サンプルCSV</h3>
-                    <button class="btn btn-link" onclick="loadSampleData('job')">就職サンプル</button>
-                    <button class="btn btn-link" onclick="loadSampleData('school')">進学サンプル</button>
-                </div>
-                <div id="uploadStatus" class="upload-status"></div>
-            </div>
-        </section>
-
         <!-- データ表示セクション -->
-        <section id="dataSection" class="data-section" style="display: none;">
+        <section id="dataSection" class="data-section">
             <div class="container">
                 <!-- フィルタパネル -->
                 <aside class="filter-panel">

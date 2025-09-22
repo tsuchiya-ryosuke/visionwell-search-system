@@ -149,9 +149,9 @@ header h1 {
 }
 
 .data-section .container {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
 }
 
 /* フィルタパネル */
@@ -160,11 +160,13 @@ header h1 {
     padding: 20px;
     border-radius: 12px;
     box-shadow: var(--shadow);
-    height: fit-content;
-    position: sticky;
-    top: 100px;
-    max-height: calc(100vh - 120px);
-    overflow-y: auto;
+    width: 100%;
+}
+
+.main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
 }
 
 .filter-panel h3 {
@@ -984,12 +986,7 @@ header h1 {
 /* レスポンシブ対応 */
 @media (max-width: 1024px) {
     .data-section .container {
-        grid-template-columns: 260px 1fr;
         gap: 20px;
-    }
-    
-    .filter-panel {
-        max-height: calc(100vh - 140px);
     }
 }
 
@@ -1002,15 +999,7 @@ header h1 {
         font-size: 1.2rem;
     }
     
-    .data-section .container {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
-    
     .filter-panel {
-        position: static;
-        margin-bottom: 20px;
-        max-height: none;
         padding: 15px;
     }
     

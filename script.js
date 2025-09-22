@@ -669,6 +669,60 @@ function restoreFilterSelections() {
     });
 }
 
+function isFilterActive(field) {
+    if (!currentFilters[field]) {
+        return false;
+    }
+
+    const value = currentFilters[field];
+
+    if (Array.isArray(value)) {
+        return value.length > 0;
+    }
+
+    if (typeof value === 'object') {
+        return Object.values(value).some(v => v !== undefined && v !== null && v !== '');
+    }
+
+    return value !== '' && value !== null && value !== undefined;
+}
+
+function updateFilterGroupToggleIcon(group) {
+    const toggleButton = group.querySelector('.filter-group-title[data-toggle-group]');
+    if (!toggleButton) {
+        return;
+    }
+
+    const icon = toggleButton.querySelector('.toggle-icon');
+    if (!icon) {
+        return;
+    }
+
+    icon.textContent = group.classList.contains('collapsed') ? '＋' : '−';
+    toggleButton.setAttribute('aria-expanded', group.classList.contains('collapsed') ? 'false' : 'true');
+}
+
+function expandActiveFilterGroups() {
+    document.querySelectorAll('.filter-priority-group.collapsed').forEach(group => {
+        const fields = Array.from(group.querySelectorAll('.filter-group'))
+            .map(element => element.dataset.field)
+            .filter(Boolean);
+
+        const hasActiveFilter = fields.some(field => isFilterActive(field));
+        if (hasActiveFilter) {
+            group.classList.remove('collapsed');
+        }
+
+        updateFilterGroupToggleIcon(group);
+    });
+}
+
+function initializeFilterGroupToggleIcons() {
+    document.querySelectorAll('.filter-priority-group').forEach(group => {
+        updateFilterGroupToggleIcon(group);
+    });
+}
+
 function setupFilters() {
     const filterConfig = getFilterConfig(currentDataType);
 
@@ -676,29 +730,36 @@ function setupFilters() {
     const sortedFilters = filterConfig.sort((a, b) => a.priority - b.priority);
 
     let filterHTML = '';
-    let currentPriority = 0;
+    let currentPriority = null;
     filterLabelMap = {};
 
     sortedFilters.forEach(filter => {
         filterLabelMap[filter.field] = filter.label;
         // 優先度グループの区切り
         if (filter.priority !== currentPriority) {
-            if (currentPriority > 0) {
-                filterHTML += '</div>'; // 前のグループを閉じる
+            if (currentPriority !== null) {
+                filterHTML += '</div></div>'; // 前のグループを閉じる
             }
-            filterHTML += `<div class="filter-priority-group priority-${filter.priority}">`;
             const groupTitle = getFilterGroupTitle(currentDataType, filter.priority);
+            const isDetailGroup = filter.priority === 2;
+            const collapsedClass = isDetailGroup ? ' collapsed' : '';
+            filterHTML += `<div class="filter-priority-group priority-${filter.priority}${collapsedClass}" data-priority="${filter.priority}">`;
             if (groupTitle) {
-                filterHTML += `<h3 class="filter-group-title">${groupTitle}</h3>`;
+                if (isDetailGroup) {
+                    filterHTML += `<button type="button" class="filter-group-title" data-toggle-group aria-expanded="false">${groupTitle}<span class="toggle-icon">＋</span></button>`;
+                } else {
+                    filterHTML += `<div class="filter-group-title">${groupTitle}</div>`;
+                }
             }
+            filterHTML += '<div class="filter-group-content">';
             currentPriority = filter.priority;
         }
 
         filterHTML += createFilterHTML(filter);
     });
-    
-    if (currentPriority > 0) {
-        filterHTML += '</div>'; // 最後のグループを閉じる
+
+    if (currentPriority !== null) {
+        filterHTML += '</div></div>'; // 最後のグループを閉じる
     }
 
     if (!filterLabelMap['産業大分類']) {
@@ -712,6 +773,8 @@ function setupFilters() {
     elements.filterContent.innerHTML = filterHTML;
 
     restoreFilterSelections();
+    expandActiveFilterGroups();
+    initializeFilterGroupToggleIcons();
     // イベントリスナーを設定
     setupFilterEventListeners();
     updateDependentFilters();
@@ -720,7 +783,7 @@ function setupFilters() {
 function getFilterGroupTitle(dataType, priority) {
     if (dataType === 'school') {
         if (priority === 1) return '🎯 通常検索';
-        if (priority === 2) return '💡 こだわり検索';
+        if (priority === 2) return '💡 詳細条件';
         if (priority === 3) return '📎 サポート情報';
     } else {
         if (priority === 1) return '🎯 基本条件';
@@ -864,6 +927,18 @@ function createFilterHTML(filter) {
 }
 
 function setupFilterEventListeners() {
+    document.querySelectorAll('.filter-group-title[data-toggle-group]').forEach(button => {
+        button.addEventListener('click', function() {
+            const group = this.closest('.filter-priority-group');
+            if (!group) {
+                return;
+            }
+
+            group.classList.toggle('collapsed');
+            updateFilterGroupToggleIcon(group);
+        });
+    });
+
     // 検索可能セレクトのイベントリスナー
     document.querySelectorAll('.searchable-select input').forEach(input => {
         input.addEventListener('focus', function() {

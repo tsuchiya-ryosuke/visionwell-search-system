@@ -71,6 +71,44 @@ INDUSTRY_MAJOR_DEFINITIONS.forEach(def => {
 
 const INDUSTRY_MAJOR_OPTIONS = INDUSTRY_MAJOR_DEFINITIONS.map(def => def.label);
 
+const JOB_CLASSIFICATION_MAJOR_DEFINITIONS = [
+    { code: '01', name: '管理的職業', mediumCodes: [] },
+    { code: '02', name: '研究・技術の職業', mediumCodes: ['09', '10'] },
+    { code: '03', name: '法務・経営・文化芸術等の専門的職業', mediumCodes: [] },
+    { code: '04', name: '医療・看護・保健の職業', mediumCodes: ['28'] },
+    { code: '05', name: '保育・教育の職業', mediumCodes: [] },
+    { code: '06', name: '事務的職業', mediumCodes: ['31', '33', '34', '36', '37', '38', '39', '40', '42'] },
+    { code: '07', name: '販売・営業の職業', mediumCodes: ['45', '48', '63'] },
+    { code: '08', name: '福祉・介護の職業', mediumCodes: ['50'] },
+    { code: '09', name: 'サービスの職業', mediumCodes: ['11', '53', '55', '56', '58'] },
+    { code: '10', name: '警備・保安の職業', mediumCodes: ['59', '62'] },
+    { code: '11', name: '農林漁業の職業', mediumCodes: [] },
+    { code: '12', name: '製造・修理・塗装・製図等の職業', mediumCodes: ['07', '67', '68', '69', '70', '71', '72', '73', '74', '75', '76', '78', '79', '80', '81', '99'] },
+    { code: '13', name: '配送・輸送・機械運転の職業', mediumCodes: ['82', '83', '84', '87', '88', '89'] },
+    { code: '14', name: '建設・土木・電気工事の職業', mediumCodes: ['08', '91', '92', '94'] },
+    { code: '15', name: '運搬・清掃・包装・選別等の職業', mediumCodes: ['95', '96', '97', '98'] }
+].map(def => ({
+    ...def,
+    label: `${def.code}:${def.name}`
+}));
+
+const JOB_MAJOR_LABEL_TO_MEDIUMS = {};
+const JOB_MEDIUM_TO_MAJOR = {};
+
+JOB_CLASSIFICATION_MAJOR_DEFINITIONS.forEach(def => {
+    JOB_MAJOR_LABEL_TO_MEDIUMS[def.label] = def.mediumCodes.map(code => code.toString().padStart(2, '0'));
+    def.mediumCodes.forEach(code => {
+        const normalizedCode = code.toString().padStart(2, '0');
+        JOB_MEDIUM_TO_MAJOR[normalizedCode] = {
+            majorCode: def.code,
+            majorName: def.name,
+            majorLabel: def.label
+        };
+    });
+});
+
+const JOB_MAJOR_OPTIONS = JOB_CLASSIFICATION_MAJOR_DEFINITIONS.map(def => def.label);
+
 function getAvailableIndustryMajorOptions() {
     const source = originalData.length ? originalData : currentData;
     const majorsWithData = new Set();
@@ -110,6 +148,52 @@ function getIndustryClassification(code) {
 
     return {
         smallCode,
+        mediumCode,
+        majorCode: majorInfo ? majorInfo.majorCode : '',
+        majorName: majorInfo ? majorInfo.majorName : '',
+        majorLabel: majorInfo ? majorInfo.majorLabel : ''
+    };
+}
+
+function getAvailableJobMajorOptions() {
+    const source = originalData.length ? originalData : currentData;
+    const majorsWithData = new Set();
+
+    source.forEach(row => {
+        if (row['職種大分類']) {
+            majorsWithData.add(row['職種大分類']);
+            return;
+        }
+
+        const info = getJobClassification(row['職業分類コード']);
+        if (info && info.majorLabel) {
+            majorsWithData.add(info.majorLabel);
+        }
+    });
+
+    if (majorsWithData.size === 0) {
+        return JOB_CLASSIFICATION_MAJOR_DEFINITIONS
+            .filter(def => def.mediumCodes.length > 0)
+            .map(def => def.label);
+    }
+
+    return JOB_MAJOR_OPTIONS.filter(option => majorsWithData.has(option));
+}
+
+function getJobClassification(code) {
+    if (code === undefined || code === null) {
+        return null;
+    }
+
+    const raw = code.toString().trim();
+    if (!raw) {
+        return null;
+    }
+
+    const mediumCode = raw.padStart(2, '0');
+    const majorInfo = JOB_MEDIUM_TO_MAJOR[mediumCode] || null;
+
+    return {
         mediumCode,
         majorCode: majorInfo ? majorInfo.majorCode : '',
         majorName: majorInfo ? majorInfo.majorName : '',
@@ -621,6 +705,10 @@ function setupFilters() {
         filterLabelMap['産業大分類'] = '🌐 産業大分類';
     }
 
+    if (!filterLabelMap['職種大分類']) {
+        filterLabelMap['職種大分類'] = '🧭 職種大分類';
+    }
+
     elements.filterContent.innerHTML = filterHTML;
 
     restoreFilterSelections();
@@ -664,6 +752,25 @@ function createFilterHTML(filter) {
                         <label for="filter_${majorFieldId}">大分類</label>
                         <select id="filter_${majorFieldId}"
                                 onchange="handleIndustryMajorFilterChange(this.value)">
+                            <option value="">大分類を選択</option>
+                            ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            `;
+            break;
+        }
+
+        case 'job_classification': {
+            const majorOptions = getAvailableJobMajorOptions();
+            const selectedMajor = currentFilters['職種大分類'] || '';
+            const majorFieldId = '職種大分類'.replace(/[()]/g, '').replace(/\s+/g, '_');
+            html += `
+                <div class="job-classification-filter">
+                    <div class="job-major-select">
+                        <label for="filter_${majorFieldId}">大分類</label>
+                        <select id="filter_${majorFieldId}"
+                                onchange="handleJobMajorFilterChange(this.value)">
                             <option value="">大分類を選択</option>
                             ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
                         </select>
@@ -787,6 +894,14 @@ function enhanceJobRecord(item) {
         record['産業大分類名'] = industryInfo.majorName || '';
     }
 
+    const jobClassificationInfo = getJobClassification(record['職業分類コード']);
+    if (jobClassificationInfo) {
+        record['職業分類コード'] = jobClassificationInfo.mediumCode;
+        record['職種大分類'] = jobClassificationInfo.majorLabel || '';
+        record['職種大分類コード'] = jobClassificationInfo.majorCode || '';
+        record['職種大分類名'] = jobClassificationInfo.majorName || '';
+    }
+
     record['勤務地(市区町村)'] = extractCityFromAddress(record['所在地'] || record['就業場所'] || '');
     record['交通アクセス'] = combineAccess(record);
     record['基本給'] = record['給与(円)'];
@@ -892,6 +1007,13 @@ function getFilterConfig(dataType) {
                 type: 'select',
                 priority: 1,
                 description: '気になる職種分類コードを選択'
+            },
+            {
+                field: '職種大分類',
+                label: '🧭 職種大分類',
+                type: 'job_classification',
+                priority: 1,
+                description: '職種の大区分で絞り込み'
             },
             {
                 field: '産業分類コード',
@@ -1134,6 +1256,17 @@ function getUniqueValues(field) {
         return getAvailableIndustryMajorOptions();
     }
 
+    if (field === '職業分類コード') {
+        const normalized = Array.from(new Set(
+            uniqueValues.map(value => value.toString().padStart(2, '0'))
+        ));
+        return normalized.sort((a, b) => a.localeCompare(b, 'ja'));
+    }
+
+    if (field === '職種大分類') {
+        return getAvailableJobMajorOptions();
+    }
+
     return uniqueValues
         .sort((a, b) => a.localeCompare(b, 'ja'))
         .slice(0, 100); // 最大100個まで
@@ -1178,7 +1311,9 @@ function updateDependentFilters() {
         return false;
     }
 
-    return updateIndustryFilterOptions();
+    const industryChanged = updateIndustryFilterOptions();
+    const jobChanged = updateJobClassificationFilterOptions();
+    return industryChanged || jobChanged;
 }
 
 function updateIndustryFilterOptions() {
@@ -1209,6 +1344,76 @@ function updateIndustryFilterOptions() {
 
 function handleIndustryMajorFilterChange(majorLabel) {
     updateFilter('産業大分類', majorLabel);
+}
+
+function updateJobClassificationFilterOptions() {
+    const majorSelect = document.getElementById('filter_職種大分類');
+    if (!majorSelect) {
+        return false;
+    }
+
+    const majorSelection = currentFilters['職種大分類'] || '';
+    const options = getAvailableJobMajorOptions();
+
+    majorSelect.innerHTML = '<option value="">大分類を選択</option>' +
+        options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+
+    let changed = false;
+
+    if (majorSelection && options.includes(majorSelection)) {
+        majorSelect.value = majorSelection;
+    } else {
+        majorSelect.value = '';
+        if (majorSelection && currentFilters['職種大分類']) {
+            delete currentFilters['職種大分類'];
+            changed = true;
+        }
+    }
+
+    const mediumChanged = updateJobMediumFilterOptions(majorSelect.value);
+    return changed || mediumChanged;
+}
+
+function handleJobMajorFilterChange(majorLabel) {
+    updateFilter('職種大分類', majorLabel);
+}
+
+function updateJobMediumFilterOptions(selectedMajor) {
+    const select = document.getElementById('filter_職業分類コード');
+    if (!select) {
+        return false;
+    }
+
+    const allOptions = getUniqueValues('職業分類コード');
+    let filteredOptions = [...allOptions];
+
+    if (selectedMajor && JOB_MAJOR_LABEL_TO_MEDIUMS[selectedMajor]) {
+        const allowedCodes = JOB_MAJOR_LABEL_TO_MEDIUMS[selectedMajor];
+        if (allowedCodes.length > 0) {
+            filteredOptions = allOptions.filter(code => allowedCodes.includes(code));
+
+            if (filteredOptions.length === 0) {
+                filteredOptions = [...allowedCodes];
+            }
+        }
+    }
+
+    const previousValue = select.value;
+    select.innerHTML = '<option value="">選択してください</option>' +
+        filteredOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+
+    if (previousValue && filteredOptions.includes(previousValue)) {
+        select.value = previousValue;
+        return false;
+    }
+
+    if (previousValue && currentFilters['職業分類コード']) {
+        delete currentFilters['職業分類コード'];
+        return true;
+    }
+
+    select.value = '';
+    return false;
 }
 
 function updateFilter(field, value) {
@@ -1794,6 +1999,7 @@ function getDetailDisplayData(item, dataType) {
                         { label: '仕事内容', value: item['仕事内容詳細'] || item['仕事内容サマリー'] || '-', multiline: true },
                         { label: '職種分類', value: item['職種分類'] || '-' },
                         { label: '職業分類コード', value: item['職業分類コード'] || '-' },
+                        { label: '職種大分類', value: item['職種大分類'] || '-' },
                         { label: '産業大分類', value: item['産業大分類'] || '-' },
                         { label: '産業分類コード', value: item['産業分類コード'] || '-' },
                         { label: '就業場所', value: item['就業場所'] || item['所在地'] || '-' }

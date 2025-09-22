@@ -1070,13 +1070,6 @@ function getFilterConfig(dataType) {
                 description: '働きたい都道府県を選択'
             },
             {
-                field: '職業分類コード',
-                label: '🧭 職種分類コード',
-                type: 'select',
-                priority: 1,
-                description: '気になる職種分類コードを選択'
-            },
-            {
                 field: '職種大分類',
                 label: '🧭 職種大分類',
                 type: 'job_classification',

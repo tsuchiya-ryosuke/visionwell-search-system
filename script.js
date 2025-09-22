@@ -9,6 +9,7 @@ let sortField = '';
 let sortOrder = 'asc';
 let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
 let currentFilters = {};
+let filterLabelMap = {};
 
 const DATASET_FILES = {
     job: 'data/就職.csv',
@@ -34,6 +35,297 @@ const PREFECTURE_ORDER = [
 
 const AUTH_PASSWORD = 'visionwell1001';
 let isAuthenticated = false;
+
+function getFieldValue(item, fields) {
+    if (!item) return '';
+
+    if (!Array.isArray(fields)) {
+        fields = [fields];
+    }
+
+    for (const field of fields) {
+        if (field && Object.prototype.hasOwnProperty.call(item, field)) {
+            const value = item[field];
+            if (value !== undefined && value !== null && value !== '') {
+                return value;
+            }
+        }
+    }
+
+    return '';
+}
+
+function normalizeNumber(value) {
+    if (value === undefined || value === null || value === '') {
+        return null;
+    }
+
+    if (typeof value === 'number') {
+        return isNaN(value) ? null : value;
+    }
+
+    const cleaned = value.toString().replace(/[^0-9.-]/g, '');
+    if (!cleaned) {
+        return null;
+    }
+
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+}
+
+function formatCurrency(value, unit = '円') {
+    const num = normalizeNumber(value);
+    if (num === null) {
+        return '-';
+    }
+
+    if (num >= 10000) {
+        const man = num / 10000;
+        if (man >= 10) {
+            return `${Math.round(man)}万円`;
+        }
+        return `${man.toFixed(1)}万円`;
+    }
+
+    return `${num.toLocaleString()}${unit}`;
+}
+
+function formatPercentage(value) {
+    const num = normalizeNumber(value);
+    if (num === null) {
+        return '-';
+    }
+    return `${num}%`;
+}
+
+function formatDeviation(value) {
+    const num = normalizeNumber(value);
+    if (num === null) {
+        return '-';
+    }
+    return num.toFixed(1);
+}
+
+function truncateText(text, maxLength = 80) {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, maxLength)}…`;
+}
+
+function splitPhrases(text) {
+    if (!text) return [];
+    return text
+        .replace(/\s+/g, ' ')
+        .split(/[、,。．\.・\n\r]/)
+        .map(part => part.trim())
+        .filter(Boolean);
+}
+
+function extractCityFromAddress(address) {
+    if (!address) return '';
+
+    let normalized = address.replace(/[0-9０-９-−ー]/g, '').replace(/\s+/g, '');
+    const prefecture = PREFECTURE_ORDER.find(pref => normalized.startsWith(pref));
+    if (prefecture) {
+        normalized = normalized.slice(prefecture.length);
+    }
+
+    const suffixes = ['市', '区', '町', '村'];
+    for (const suffix of suffixes) {
+        const index = normalized.indexOf(suffix);
+        if (index >= 0) {
+            return normalized.slice(0, index + 1);
+        }
+    }
+
+    const gunIndex = normalized.indexOf('郡');
+    if (gunIndex >= 0) {
+        const rest = normalized.slice(gunIndex);
+        const match = rest.match(/郡[^市区町村]*[町村]/);
+        if (match) {
+            return normalized.slice(0, gunIndex + match[0].length);
+        }
+        return normalized.slice(0, gunIndex + 1);
+    }
+
+    return normalized.slice(0, Math.min(normalized.length, 6));
+}
+
+function deriveEmploymentType(item, remarks) {
+    const text = (remarks || '').replace(/\s+/g, '');
+    const candidates = [
+        { regex: /正社員/, label: '正社員' },
+        { regex: /契約社員/, label: '契約社員' },
+        { regex: /派遣社員|派遣/, label: '派遣社員' },
+        { regex: /パート|アルバイト/, label: 'パート・アルバイト' },
+        { regex: /嘱託|臨時/, label: '嘱託・臨時' }
+    ];
+
+    for (const candidate of candidates) {
+        if (candidate.regex.test(text)) {
+            return candidate.label;
+        }
+    }
+
+    return '情報なし';
+}
+
+function deriveWorkingHours(item, remarks) {
+    const shift = (item['交代制'] || '').trim();
+    if (/有|あり/.test(shift)) return '交代制あり';
+    if (/無|なし/.test(shift)) return '日勤中心';
+
+    const text = (remarks || '').replace(/\s+/g, '');
+    if (/フレックスタイム|フレックス/.test(text)) return 'フレックスタイム制';
+    if (/夜勤/.test(text)) return '夜勤あり';
+    if (/シフト|交代/.test(text)) return 'シフト勤務';
+    if (/日勤/.test(text)) return '日勤のみ';
+
+    return '情報なし';
+}
+
+function deriveQualificationInfo(remarks) {
+    const text = remarks || '';
+    const phrases = splitPhrases(text);
+    const matches = phrases.filter(phrase => /資格|免許/.test(phrase));
+
+    if (matches.length > 0) {
+        return {
+            summary: matches[0],
+            detail: matches.slice(0, 3).join('、')
+        };
+    }
+
+    if (/資格不要|資格不問|未経験可/.test(text)) {
+        const label = '資格不問・未経験可';
+        return { summary: label, detail: label };
+    }
+
+    return { summary: '情報なし', detail: '' };
+}
+
+function deriveBenefitInfo(remarks) {
+    const text = remarks || '';
+    const summaryLabels = [];
+    const keywordLabels = [
+        { regex: /寮|社宅/, label: '寮・社宅あり' },
+        { regex: /住宅手当|家賃補助/, label: '住宅手当あり' },
+        { regex: /交通費|通勤手当/, label: '交通費支給' },
+        { regex: /食堂|まかない/, label: '社員食堂あり' },
+        { regex: /資格支援|資格取得|受験費/, label: '資格取得支援あり' },
+        { regex: /育児|産休|育休/, label: '育児支援あり' }
+    ];
+
+    keywordLabels.forEach(({ regex, label }) => {
+        if (regex.test(text) && !summaryLabels.includes(label)) {
+            summaryLabels.push(label);
+        }
+    });
+
+    const phrases = splitPhrases(text);
+    const detailMatches = phrases.filter(phrase => /福利厚生|手当|寮|社宅|制度|支援|食堂|保険|休暇/.test(phrase));
+
+    const summary = summaryLabels.slice(0, 2).join('・') || detailMatches[0] || '情報なし';
+
+    return {
+        summary,
+        detail: detailMatches.slice(0, 4).join('、')
+    };
+}
+
+function deriveHolidayPolicy(item, remarks) {
+    const text = (remarks || '').replace(/\s+/g, '');
+    if (/完全週休?2/.test(text)) return '完全週休2日制';
+    if (/週休?2/.test(text)) return '週休2日制';
+    if (/シフト/.test(text)) return 'シフト制';
+    if (/交代制/.test(text)) return '交代制';
+
+    const holidayCount = normalizeNumber(item['休日日数']);
+    if (holidayCount !== null) {
+        if (holidayCount >= 120) return '年間休日120日以上';
+        if (holidayCount >= 110) return '年間休日110日以上';
+        if (holidayCount >= 100) return '年間休日100日以上';
+        return `${holidayCount}日`;
+    }
+
+    return '情報なし';
+}
+
+function deriveBonusAvailability(item, remarks) {
+    const bonusBasic = normalizeNumber(item['賞与(基本給、円)']);
+    const bonusAverage = normalizeNumber(item['賞与(平均、万円)']);
+    const text = remarks || '';
+    const hasRaise = /昇給/.test(text);
+
+    if ((bonusBasic && bonusBasic > 0) || (bonusAverage && bonusAverage > 0)) {
+        return hasRaise ? '昇給・賞与あり' : '賞与あり';
+    }
+
+    if (hasRaise) {
+        return '昇給あり';
+    }
+
+    return '情報なし';
+}
+
+function deriveTrainingInfo(remarks) {
+    const text = remarks || '';
+    const phrases = splitPhrases(text);
+    const matches = phrases.filter(phrase => /研修|OJT|教育|講習|メンター|サポート/.test(phrase));
+
+    if (matches.length > 0) {
+        const first = matches[0];
+        const summary = /充実|豊富/.test(first) ? '研修充実' : '研修あり';
+        return { summary, detail: matches.slice(0, 3).join('、') };
+    }
+
+    if (/OJT/.test(text)) {
+        return { summary: 'OJTあり', detail: 'OJTによる育成を実施' };
+    }
+
+    return { summary: '情報なし', detail: '' };
+}
+
+function deriveJobDescriptionInfo(remarks, businessContent) {
+    const text = remarks || '';
+    const phrases = splitPhrases(text);
+    const matches = phrases.filter(phrase => /仕事内容|業務|担当|作業|サポート|サービス/.test(phrase));
+
+    const summarySource = matches[0] || businessContent || '';
+    const detail = matches.slice(0, 4).join('、') || businessContent || '';
+
+    return {
+        summary: summarySource,
+        detail
+    };
+}
+
+function deriveApplicationInfo(remarks) {
+    const text = remarks || '';
+    const phrases = splitPhrases(text);
+    const matches = phrases.filter(phrase => /応募|歓迎|経験|資格|免許|可/.test(phrase));
+
+    const summary = matches[0] || '';
+    return {
+        summary,
+        detail: matches.slice(0, 4).join('、')
+    };
+}
+
+function combineAccess(item) {
+    const line = (item['鉄道路線'] || '').trim();
+    const station = (item['最寄駅'] || '').trim();
+    if (line && station) {
+        return `${line} / ${station}`;
+    }
+    return station || line || '';
+}
+
+function formatEmployeeCount(value) {
+    const num = normalizeNumber(value);
+    if (num === null) return '情報なし';
+    return `${Math.round(num).toLocaleString()}名`;
+}
 
 // DOM要素
 const elements = {
@@ -171,30 +463,29 @@ function setupDataView() {
 
 function setupFilters() {
     const filterConfig = getFilterConfig(currentDataType);
-    
+
     // 優先度でソート
     const sortedFilters = filterConfig.sort((a, b) => a.priority - b.priority);
-    
+
     let filterHTML = '';
     let currentPriority = 0;
-    
+    filterLabelMap = {};
+
     sortedFilters.forEach(filter => {
+        filterLabelMap[filter.field] = filter.label;
         // 優先度グループの区切り
         if (filter.priority !== currentPriority) {
             if (currentPriority > 0) {
                 filterHTML += '</div>'; // 前のグループを閉じる
             }
             filterHTML += `<div class="filter-priority-group priority-${filter.priority}">`;
-            if (filter.priority === 1) {
-                filterHTML += '<h3 class="filter-group-title">基本条件</h3>';
-            } else if (filter.priority === 2) {
-                filterHTML += '<h3 class="filter-group-title">詳細条件</h3>';
-            } else if (filter.priority === 3) {
-                filterHTML += '<h3 class="filter-group-title">その他の条件</h3>';
+            const groupTitle = getFilterGroupTitle(currentDataType, filter.priority);
+            if (groupTitle) {
+                filterHTML += `<h3 class="filter-group-title">${groupTitle}</h3>`;
             }
             currentPriority = filter.priority;
         }
-        
+
         filterHTML += createFilterHTML(filter);
     });
     
@@ -206,6 +497,19 @@ function setupFilters() {
     
     // イベントリスナーを設定
     setupFilterEventListeners();
+}
+
+function getFilterGroupTitle(dataType, priority) {
+    if (dataType === 'school') {
+        if (priority === 1) return '🎯 通常検索';
+        if (priority === 2) return '💡 こだわり検索';
+        if (priority === 3) return '📎 サポート情報';
+    } else {
+        if (priority === 1) return '🎯 基本条件';
+        if (priority === 2) return '💡 詳細条件';
+        if (priority === 3) return '📎 その他の条件';
+    }
+    return '';
 }
 
 function createFilterHTML(filter) {
@@ -221,7 +525,7 @@ function createFilterHTML(filter) {
     
     switch (filter.type) {
         case 'select':
-            const options = getUniqueValues(filter.field);
+            const options = filter.options || getUniqueValues(filter.field);
             html += `
                 <select id="filter_${fieldId}" onchange="updateFilter('${filter.field}', this.value)">
                     <option value="">選択してください</option>
@@ -229,12 +533,12 @@ function createFilterHTML(filter) {
                 </select>
             `;
             break;
-            
+
         case 'select_searchable':
-            const searchableOptions = getUniqueValues(filter.field);
+            const searchableOptions = filter.options || getUniqueValues(filter.field);
             html += `
                 <div class="searchable-select">
-                    <input type="text" id="filter_search_${fieldId}" placeholder="検索して選択..." 
+                    <input type="text" id="filter_search_${fieldId}" placeholder="検索して選択..."
                            oninput="filterSelectOptions('${filter.field}', this.value)">
                     <select id="filter_${fieldId}" onchange="updateFilter('${filter.field}', this.value)" size="5" style="display:none;">
                         <option value="">選択してください</option>
@@ -321,6 +625,49 @@ function setupFilterEventListeners() {
     });
 }
 
+function enhanceJobRecord(item) {
+    const record = { ...item };
+    const remarks = record['備考'] || '';
+
+    record['勤務地(市区町村)'] = extractCityFromAddress(record['所在地'] || record['就業場所'] || '');
+    record['交通アクセス'] = combineAccess(record);
+    record['基本給'] = record['給与(円)'];
+
+    const qualificationInfo = deriveQualificationInfo(remarks);
+    record['資格・免許'] = qualificationInfo.summary;
+    record['資格・免許詳細'] = qualificationInfo.detail;
+
+    const benefitInfo = deriveBenefitInfo(remarks);
+    record['福利厚生'] = benefitInfo.summary;
+    record['福利厚生詳細'] = benefitInfo.detail;
+    record['主要福利厚生'] = benefitInfo.summary !== '情報なし' ? benefitInfo.summary : '';
+
+    record['雇用形態'] = deriveEmploymentType(record, remarks);
+    record['就業時間'] = deriveWorkingHours(record, remarks);
+    record['休日制度'] = deriveHolidayPolicy(record, remarks);
+    record['昇給・賞与'] = deriveBonusAvailability(record, remarks);
+
+    const trainingInfo = deriveTrainingInfo(remarks);
+    record['研修制度'] = trainingInfo.summary;
+    record['研修制度詳細'] = trainingInfo.detail;
+
+    const jobInfo = deriveJobDescriptionInfo(remarks, record['事業内容']);
+    record['仕事内容詳細'] = jobInfo.detail;
+    record['仕事内容サマリー'] = jobInfo.summary;
+
+    const applicationInfo = deriveApplicationInfo(remarks);
+    record['応募条件メモ'] = applicationInfo.detail || applicationInfo.summary;
+
+    const highlightSource = [
+        jobInfo.summary,
+        benefitInfo.summary !== '情報なし' ? benefitInfo.summary : '',
+        applicationInfo.summary
+    ].find(text => text && text.trim());
+    record['求人ハイライト'] = highlightSource || '';
+
+    return record;
+}
+
 function filterSelectOptions(field, searchTerm) {
     const fieldId = field.replace(/[()]/g, '').replace(/\s+/g, '_');
     const select = document.getElementById(`filter_${fieldId}`);
@@ -367,128 +714,225 @@ function setCompanySize(field, min, max) {
 function getFilterConfig(dataType) {
     if (dataType === 'job') {
         return [
-            { 
-                field: '都道府県', 
-                label: '🗾 勤務地', 
+            {
+                field: '都道府県',
+                label: '🗾 勤務地(都道府県)',
                 type: 'select',
                 priority: 1,
-                description: 'どの都道府県で働きたいか選択'
+                description: '働きたい都道府県を選択'
             },
-            { 
-                field: '職種', 
-                label: '💼 職種', 
+            {
+                field: '勤務地(市区町村)',
+                label: '🏙️ 勤務地(市区町村)',
+                type: 'select_searchable',
+                priority: 1,
+                description: '通いやすい市区町村で絞り込み'
+            },
+            {
+                field: '職業分類コード',
+                label: '🧭 職種分類コード',
                 type: 'select',
                 priority: 1,
-                description: 'どんな仕事をしたいか選択'
+                description: '気になる職種分類コードを選択'
             },
-            { 
-                field: '給与(円)', 
-                label: '💰 給与', 
+            {
+                field: '産業分類コード',
+                label: '🏭 産業分類コード',
+                type: 'select',
+                priority: 1,
+                description: '興味のある産業分類コードを選択'
+            },
+            {
+                field: '雇用形態',
+                label: '🧾 雇用形態',
+                type: 'select',
+                priority: 1,
+                description: '正社員・契約社員など雇用形態で絞り込み',
+                options: ['正社員', '契約社員', '派遣社員', 'パート・アルバイト', '嘱託・臨時', '情報なし']
+            },
+            {
+                field: '就業時間',
+                label: '⏰ 就業時間',
+                type: 'select',
+                priority: 1,
+                description: '日勤・交代制など働き方を選択',
+                options: ['日勤中心', '交代制あり', 'シフト勤務', '夜勤あり', 'フレックスタイム制', '情報なし']
+            },
+            {
+                field: '給与(円)',
+                label: '💰 基本給',
                 type: 'salary_range',
                 priority: 1,
-                description: '希望する月給の範囲を指定',
+                description: '希望する基本給の目安を入力',
                 min: 0,
                 max: 500000,
                 step: 10000
             },
-            { 
-                field: '職種分類', 
-                label: '🏭 業界', 
-                type: 'select',
-                priority: 2,
-                description: '働きたい業界を選択'
-            },
-            { 
-                field: '最寄駅', 
-                label: '🚃 最寄駅', 
-                type: 'select_searchable',
-                priority: 2,
-                description: '通勤しやすい駅を選択'
-            },
-            { 
-                field: '従業員数(全体)', 
-                label: '👥 会社規模', 
+            {
+                field: '従業員数(全体)',
+                label: '👥 従業員数',
                 type: 'company_size',
                 priority: 2,
-                description: '働きたい会社の規模を選択'
+                description: '企業規模で絞り込み'
             },
-            { 
-                field: '交代制', 
-                label: '⏰ 勤務時間', 
+            {
+                field: '資格・免許',
+                label: '🎓 資格・免許',
+                type: 'select_searchable',
+                priority: 2,
+                description: '必要な資格・免許で検索'
+            },
+            {
+                field: '福利厚生',
+                label: '🎁 福利厚生',
+                type: 'select_searchable',
+                priority: 2,
+                description: '寮・社宅や手当など福利厚生で絞り込み'
+            },
+            {
+                field: '休日制度',
+                label: '📅 休日制度',
                 type: 'select',
-                priority: 3,
-                description: 'シフト制かどうかを選択'
+                priority: 2,
+                description: '週休制度など休日の取り方を選択',
+                options: ['完全週休2日制', '週休2日制', 'シフト制', '交代制', '年間休日120日以上', '年間休日110日以上', '年間休日100日以上', '情報なし']
             },
-            { 
-                field: '休日日数', 
-                label: '📅 休日数', 
+            {
+                field: '交通アクセス',
+                label: '🚃 交通アクセス',
+                type: 'select_searchable',
+                priority: 2,
+                description: '最寄駅や路線で通勤のしやすさを確認'
+            },
+            {
+                field: '休日日数',
+                label: '📆 年間休日数',
                 type: 'range',
-                priority: 3,
-                description: '年間休日数の希望を指定',
-                min: 80,
-                max: 130
+                priority: 2,
+                description: '年間休日数の希望範囲を入力',
+                min: 60,
+                max: 150,
+                step: 5
+            },
+            {
+                field: '昇給・賞与',
+                label: '💹 昇給・賞与',
+                type: 'select',
+                priority: 2,
+                description: '昇給・賞与の有無で絞り込み',
+                options: ['昇給・賞与あり', '賞与あり', '昇給あり', '情報なし']
+            },
+            {
+                field: '研修制度',
+                label: '📘 研修制度',
+                type: 'select',
+                priority: 2,
+                description: '研修や教育体制の充実度で選択',
+                options: ['研修充実', '研修あり', 'OJTあり', '情報なし']
             }
         ];
     } else {
         return [
-            { 
-                field: '都道府県', 
-                label: '🗾 所在地', 
+            {
+                field: '都道府県',
+                label: '🗾 都道府県',
                 type: 'select',
                 priority: 1,
-                description: 'どの都道府県の学校か選択'
+                description: '通学したい地域を選んでください'
             },
-            { 
-                field: '校種', 
-                label: '🎓 学校種別', 
+            {
+                field: '校種',
+                label: '🎓 学校種別',
                 type: 'select',
                 priority: 1,
-                description: '大学・短大・専門学校など'
+                description: '大学・短大・専門学校などを選べます'
             },
-            { 
-                field: '国公私', 
-                label: '🏛️ 設置区分', 
+            {
+                field: '学部名',
+                label: '📚 学部・系統',
+                type: 'select_searchable',
+                priority: 1,
+                description: '学びたい学部・系統名で絞り込み'
+            },
+            {
+                field: '学科名',
+                label: '🔬 学科・コース',
+                type: 'select_searchable',
+                priority: 1,
+                description: '気になる学科やコース名で検索'
+            },
+            {
+                field: '選考方法',
+                label: '📝 入試方法',
                 type: 'select',
                 priority: 1,
-                description: '国立・公立・私立を選択'
+                description: '一般・推薦・AOなど入試形式で絞り込み'
             },
-            { 
-                field: '学部名', 
-                label: '📚 学部', 
+            {
+                field: '偏差値',
+                label: '📈 偏差値目安',
+                type: 'range',
+                priority: 2,
+                description: '志望レベルに合わせて目安偏差値を指定',
+                min: 35,
+                max: 80
+            },
+            {
+                field: '年間学費',
+                label: '💸 年間学費',
+                type: 'range',
+                priority: 2,
+                description: '年間にかかる学費の目安を入力',
+                min: 0,
+                max: 2000000,
+                step: 50000
+            },
+            {
+                field: '人数枠',
+                label: '👥 募集人数',
+                type: 'range',
+                priority: 2,
+                description: '定員規模で絞り込み',
+                min: 0,
+                max: 500
+            },
+            {
+                field: '特待生制度',
+                label: '🎁 特待生・奨学金',
+                type: 'select',
+                priority: 2,
+                description: '特待生制度や奨学金の有無'
+            },
+            {
+                field: '取得可能資格',
+                label: '📜 取得可能資格',
                 type: 'select_searchable',
                 priority: 2,
-                description: '興味のある学部を選択'
+                description: '目指したい資格で絞り込み'
             },
-            { 
-                field: '学科名', 
-                label: '🔬 学科', 
-                type: 'select_searchable',
-                priority: 2,
-                description: '学びたい学科を選択'
-            },
-            { 
-                field: '分野', 
-                label: '📖 分野', 
-                type: 'select',
-                priority: 2,
-                description: '学習分野を選択'
-            },
-            { 
-                field: '選考方法', 
-                label: '📝 入試方式', 
-                type: 'select',
-                priority: 3,
-                description: '受験方法を選択'
-            },
-            { 
-                field: '評定', 
-                label: '📊 評定基準', 
+            {
+                field: '就職率',
+                label: '💼 就職率',
                 type: 'range',
                 priority: 3,
-                description: '必要な評定平均値',
-                min: 2.5,
-                max: 5.0,
-                step: 0.1
+                description: '就職率や進路実績を確認',
+                min: 0,
+                max: 100,
+                step: 1
+            },
+            {
+                field: '寮・住環境',
+                label: '🏠 寮・住環境',
+                type: 'select',
+                priority: 3,
+                description: '学生寮や住まいサポート情報'
+            },
+            {
+                field: 'オープンキャンパス情報',
+                label: '🎪 オープンキャンパス',
+                type: 'select',
+                priority: 3,
+                description: 'イベント情報から選択'
             }
         ];
     }
@@ -545,7 +989,9 @@ function getSortConfig(dataType) {
         return [
             { field: '学校名', label: '学校名' },
             { field: '学部名', label: '学部名' },
-            { field: '学科名', label: '学科名' }
+            { field: '学科名', label: '学科名' },
+            { field: '偏差値', label: '偏差値' },
+            { field: '年間学費', label: '年間学費' }
         ];
     }
 }
@@ -586,10 +1032,12 @@ function updateActiveFilterTags() {
         if (typeof value === 'object') {
             if (value.min !== undefined || value.max !== undefined) {
                 const range = `${value.min || ''}〜${value.max || ''}`;
-                tagsHTML += `<span class="filter-tag" onclick="removeFilter('${field}')">${field}: ${range} ×</span>`;
+                const label = filterLabelMap[field] || field;
+                tagsHTML += `<span class="filter-tag" onclick="removeFilter('${field}')">${label}: ${range} ×</span>`;
             }
         } else {
-            tagsHTML += `<span class="filter-tag" onclick="removeFilter('${field}')">${field}: ${value} ×</span>`;
+            const label = filterLabelMap[field] || field;
+            tagsHTML += `<span class="filter-tag" onclick="removeFilter('${field}')">${label}: ${value} ×</span>`;
         }
     });
     
@@ -622,9 +1070,10 @@ function applyFiltersAndSearch() {
         if (typeof value === 'object') {
             // 範囲フィルタ
             data = data.filter(row => {
-                const val = parseFloat(row[field]);
-                if (isNaN(val)) return false;
-                
+                const rawValue = row[field];
+                const val = normalizeNumber(rawValue);
+                if (val === null) return false;
+
                 if (value.min !== undefined && val < value.min) return false;
                 if (value.max !== undefined && val > value.max) return false;
                 return true;
@@ -717,17 +1166,25 @@ function updateCards() {
 function createCard(item, index) {
     const card = document.createElement('div');
     card.className = 'card';
-    
+
     const isFavorite = favorites.some(fav => JSON.stringify(fav) === JSON.stringify(item));
     const cardData = getCardDisplayData(item, currentDataType);
-    
+
     card.innerHTML = `
         <div class="card-header">
-            <h3 class="card-title">${cardData.title}</h3>
+            <div class="card-title-group">
+                <h3 class="card-title">${cardData.title}</h3>
+                ${cardData.subtitle ? `<p class="card-subtitle">${cardData.subtitle}</p>` : ''}
+            </div>
             <button class="card-favorite ${isFavorite ? 'active' : ''}" data-index="${index}">
                 ${isFavorite ? '★' : '☆'}
             </button>
         </div>
+        ${cardData.image ? `
+            <div class="card-image">
+                <img src="${cardData.image}" alt="${cardData.title}のイメージ" loading="lazy" onerror="this.closest('.card-image').style.display='none';">
+            </div>
+        ` : ''}
         <div class="card-content">
             ${cardData.fields.map(field => `
                 <div class="card-field">
@@ -736,6 +1193,7 @@ function createCard(item, index) {
                 </div>
             `).join('')}
         </div>
+        ${cardData.description ? `<p class="card-description">${cardData.description}</p>` : ''}
         ${cardData.tags.length > 0 ? `
             <div class="card-tags">
                 ${cardData.tags.map(tag => `<span class="card-tag">${tag}</span>`).join('')}
@@ -764,32 +1222,62 @@ function createCard(item, index) {
 
 function getCardDisplayData(item, dataType) {
     if (dataType === 'job') {
+        const prefecture = item['都道府県'] || '';
+        const city = item['勤務地(市区町村)'] || '';
+        const location = [prefecture, city].filter(Boolean).join(' ') || item['所在地'] || '-';
+        const salary = formatSalary(item['給与(円)']);
+        const employmentType = item['雇用形態'] && item['雇用形態'] !== '情報なし' ? item['雇用形態'] : '-';
+        const access = item['交通アクセス'] || item['最寄駅'] || '-';
+        const employeeCount = formatEmployeeCount(item['従業員数(全体)']);
+        const benefits = item['主要福利厚生']
+            ? truncateText(item['主要福利厚生'], 40)
+            : '詳細で確認';
+        const highlight = truncateText(item['求人ハイライト'] || item['仕事内容サマリー'] || item['事業内容'] || '', 80);
+
         return {
             title: item['事業所名'] || '不明',
+            subtitle: item['職種'] || '',
+            image: getFieldValue(item, ['企業画像URL', '画像URL']),
             fields: [
-                { label: '職種', value: item['職種'] || '-' },
-                { label: '給与', value: formatSalary(item['給与(円)']) },
-                { label: '所在地', value: item['所在地'] || '-' },
-                { label: '最寄駅', value: item['最寄駅'] || '-' }
+                { label: '勤務地', value: location },
+                { label: '基本給', value: salary },
+                { label: '雇用形態', value: employmentType },
+                { label: '最寄駅・交通', value: access },
+                { label: '従業員数', value: employeeCount },
+                { label: '主要な福利厚生', value: benefits }
             ],
+            description: highlight,
             tags: [
-                item['都道府県'],
-                item['職種分類']
+                prefecture,
+                employmentType !== '-' ? employmentType : null,
+                item['昇給・賞与'] && item['昇給・賞与'] !== '情報なし' ? item['昇給・賞与'] : null,
+                item['研修制度'] && item['研修制度'] !== '情報なし' ? item['研修制度'] : null
             ].filter(tag => tag)
         };
     } else {
+        const prefecture = getFieldValue(item, ['都道府県']);
+        const faculty = getFieldValue(item, ['学部名']);
+        const department = getFieldValue(item, ['学科名']);
+        const tuition = formatCurrency(getFieldValue(item, ['年間学費', '初年度納入金', '学費']));
+        const deviation = formatDeviation(getFieldValue(item, ['偏差値', '評定']));
+        const feature = truncateText(getFieldValue(item, ['特徴', '備考', '学校紹介', '汎用']));
+        const exam = getFieldValue(item, ['選考方法']);
+
         return {
             title: item['学校名'] || '不明',
+            subtitle: [faculty, department].filter(Boolean).join(' / '),
+            image: getFieldValue(item, ['学校画像', '学校画像URL', '画像URL']),
             fields: [
-                { label: '学部', value: item['学部名'] || '-' },
-                { label: '学科', value: item['学科名'] || '-' },
-                { label: '国公私', value: item['国公私'] || '-' },
-                { label: '校種', value: item['校種'] || '-' }
+                { label: '所在地', value: prefecture || item['要録用所在地'] || '-' },
+                { label: '偏差値', value: deviation === '-' ? '情報なし' : deviation },
+                { label: '年間学費', value: tuition },
+                { label: '入試方法', value: exam || '-' }
             ],
+            description: feature,
             tags: [
-                item['都道府県'],
-                item['校種'],
-                item['国公私']
+                prefecture,
+                getFieldValue(item, ['校種']),
+                getFieldValue(item, ['国公私'])
             ].filter(tag => tag)
         };
     }
@@ -1048,17 +1536,27 @@ function saveMemo(itemKey, memo) {
 
 function getDetailDisplayData(item, dataType) {
     if (dataType === 'job') {
-        // 重要な情報を先に表示
         const keyInfo = [];
-        if (item['給与(円)']) keyInfo.push({ icon: '💰', label: '月給', value: formatSalary(item['給与(円)']) });
-        if (item['休日日数']) keyInfo.push({ icon: '📅', label: '年間休日', value: `${item['休日日数']}日` });
-        if (item['従業員数(全体)']) keyInfo.push({ icon: '👥', label: '従業員数', value: `${item['従業員数(全体)']}名` });
-        if (item['最寄駅']) keyInfo.push({ icon: '🚃', label: '最寄駅', value: item['最寄駅'] });
+        const salary = formatSalary(item['給与(円)']);
+        const location = [item['都道府県'] || '', item['勤務地(市区町村)'] || '']
+            .filter(Boolean)
+            .join(' ') || item['所在地'] || item['就業場所'] || '';
+        const employmentType = item['雇用形態'] && item['雇用形態'] !== '情報なし' ? item['雇用形態'] : '';
+        const holidays = item['休日日数'] ? `${item['休日日数']}日` : (item['休日制度'] && item['休日制度'] !== '情報なし' ? item['休日制度'] : '');
+        const bonus = item['昇給・賞与'] && item['昇給・賞与'] !== '情報なし' ? item['昇給・賞与'] : '';
+        const access = item['交通アクセス'] || item['最寄駅'] || '';
+
+        if (salary && salary !== '-') keyInfo.push({ icon: '💰', label: '基本給', value: salary });
+        if (location) keyInfo.push({ icon: '📍', label: '勤務地', value: location });
+        if (employmentType) keyInfo.push({ icon: '🧾', label: '雇用形態', value: employmentType });
+        if (holidays) keyInfo.push({ icon: '📅', label: '休日', value: holidays });
+        if (bonus) keyInfo.push({ icon: '💹', label: '昇給・賞与', value: bonus });
+        if (access) keyInfo.push({ icon: '🚃', label: '最寄り', value: access });
 
         return {
             title: item['事業所名'] || '不明',
             subtitle: item['職種'] || '',
-            keyInfo: keyInfo,
+            keyInfo,
             sections: [
                 {
                     title: '🏢 企業基本情報',
@@ -1066,66 +1564,103 @@ function getDetailDisplayData(item, dataType) {
                     fields: [
                         { label: '企業名', value: item['事業所名'] || '-', important: true },
                         { label: 'フリガナ', value: item['事業所名フリガナ'] || '-' },
-                        { label: '事業内容', value: item['事業内容'] || '-', multiline: true },
-                        { label: '資本金', value: item['資本金(億円)'] ? `${item['資本金(億円)']}億円` : '-' }
+                        { label: '所在地', value: item['所在地'] || item['就業場所'] || '-', important: true },
+                        { label: '従業員数（全体）', value: formatEmployeeCount(item['従業員数(全体)']) },
+                        { label: '従業員数（就業場所）', value: formatEmployeeCount(item['従業員数(就業場所)']) },
+                        { label: '資本金', value: item['資本金(億円)'] ? `${item['資本金(億円)']}億円` : '-' },
+                        { label: '代表連絡先', value: item['採用担当TEL'] || '-', important: true }
                     ]
                 },
                 {
-                    title: '📍 勤務地・アクセス',
-                    icon: '📍',
-                    fields: [
-                        { label: '勤務地', value: item['所在地'] || item['就業場所'] || '-', important: true },
-                        { label: '郵便番号', value: item['郵便番号'] || '-' },
-                        { label: '鉄道路線', value: item['鉄道路線'] || '-' },
-                        { label: '最寄駅', value: item['最寄駅'] || '-', important: true }
-                    ]
-                },
-                {
-                    title: '💼 職種・待遇',
-                    icon: '💼',
+                    title: '🧾 職務内容詳細',
+                    icon: '🧾',
                     fields: [
                         { label: '職種', value: item['職種'] || '-', important: true },
+                        { label: '仕事内容', value: item['仕事内容詳細'] || item['仕事内容サマリー'] || '-', multiline: true },
                         { label: '職種分類', value: item['職種分類'] || '-' },
-                        { label: '月給', value: formatSalary(item['給与(円)']), important: true, highlight: true },
-                        { label: '賞与（基本給）', value: item['賞与(基本給、円)'] ? `${item['賞与(基本給、円)']}円` : '-' },
-                        { label: '賞与（平均）', value: item['賞与(平均、万円)'] ? `${item['賞与(平均、万円)']}万円` : '-' },
-                        { label: '交代制', value: item['交代制'] || '-' },
-                        { label: '年間休日', value: item['休日日数'] ? `${item['休日日数']}日` : '-', important: true }
+                        { label: '職業分類コード', value: item['職業分類コード'] || '-' },
+                        { label: '産業分類コード', value: item['産業分類コード'] || '-' },
+                        { label: '就業場所', value: item['就業場所'] || item['所在地'] || '-' }
                     ]
                 },
                 {
-                    title: '👥 職場環境',
-                    icon: '👥',
+                    title: '💼 労働条件',
+                    icon: '💼',
                     fields: [
-                        { label: '従業員数（全体）', value: item['従業員数(全体)'] ? `${item['従業員数(全体)']}名` : '-' },
-                        { label: '従業員数（就業場所）', value: item['従業員数(就業場所)'] ? `${item['従業員数(就業場所)']}名` : '-' },
-                        { label: '男性従業員', value: item['従業員数(男性)'] ? `${item['従業員数(男性)']}名` : '-' },
-                        { label: '女性従業員', value: item['従業員数(女性)'] ? `${item['従業員数(女性)']}名` : '-' },
+                        { label: '雇用形態', value: employmentType || '-', important: true },
+                        { label: '就業時間', value: item['就業時間'] || '-', important: true },
+                        { label: '休日制度', value: item['休日制度'] || '-' },
+                        { label: '年間休日', value: item['休日日数'] ? `${item['休日日数']}日` : '-' },
+                        { label: '基本給', value: salary, highlight: true, important: true },
+                        { label: '昇給・賞与', value: bonus || '-' },
+                        { label: '賞与（基本給換算）', value: item['賞与(基本給、円)'] ? `${item['賞与(基本給、円)']}円` : '-' },
+                        { label: '賞与（平均）', value: item['賞与(平均、万円)'] ? `${item['賞与(平均、万円)']}万円` : '-' }
+                    ]
+                },
+                {
+                    title: '✅ 応募条件',
+                    icon: '✅',
+                    fields: [
+                        { label: '必要資格・免許', value: item['資格・免許'] || '-', important: true },
+                        { label: '資格・免許詳細', value: item['資格・免許詳細'] || '-', multiline: true },
+                        { label: '応募条件メモ', value: item['応募条件メモ'] || '-', multiline: true },
                         { label: '募集対象', value: getMentionTarget(item) }
                     ]
                 },
                 {
-                    title: '📞 応募・連絡先',
+                    title: '🎁 福利厚生',
+                    icon: '🎁',
+                    fields: [
+                        { label: '主要な福利厚生', value: item['主要福利厚生'] || '-', important: true },
+                        { label: '福利厚生詳細', value: item['福利厚生詳細'] || '-', multiline: true },
+                        { label: '交通アクセス', value: access || '-' }
+                    ]
+                },
+                {
+                    title: '🏢 会社の特徴・事業内容',
+                    icon: '🏢',
+                    fields: [
+                        { label: '事業内容', value: item['事業内容'] || '-', multiline: true },
+                        { label: '企業からのメッセージ', value: item['備考'] || '-', multiline: true }
+                    ]
+                },
+                {
+                    title: '📘 研修制度',
+                    icon: '📘',
+                    fields: [
+                        { label: '研修制度', value: item['研修制度'] || '-', important: true },
+                        { label: '研修制度詳細', value: item['研修制度詳細'] || '-', multiline: true }
+                    ]
+                },
+                {
+                    title: '📞 応募方法・連絡先',
                     icon: '📞',
                     fields: [
+                        { label: '応募先郵便番号', value: item['応募先郵便番号'] || '-' },
+                        { label: '応募先住所', value: item['応募先'] || '-', multiline: true },
                         { label: '採用担当部署', value: item['採用担当部署'] || '-' },
                         { label: '採用担当者', value: item['採用担当者'] || '-' },
                         { label: '電話番号', value: item['採用担当TEL'] || '-', important: true },
-                        { label: 'FAX', value: item['採用担当FAX'] || '-' },
-                        { label: '応募先住所', value: item['応募先'] || '-' }
+                        { label: 'FAX', value: item['採用担当FAX'] || '-' }
                     ]
                 }
             ],
-            memo: '', // メモ機能用
-            additionalInfo: item['備考'] || ''
+            memo: '',
+            additionalInfo: ''
         };
     } else {
         // 進学データの重要情報
         const keyInfo = [];
-        if (item['校種']) keyInfo.push({ icon: '🎓', label: '校種', value: item['校種'] });
-        if (item['国公私']) keyInfo.push({ icon: '🏛️', label: '設置', value: item['国公私'] });
-        if (item['選考方法']) keyInfo.push({ icon: '📝', label: '選考', value: item['選考方法'] });
-        if (item['人数枠']) keyInfo.push({ icon: '👥', label: '募集人数', value: `${item['人数枠']}名` });
+        const schoolType = getFieldValue(item, ['校種']);
+        const establishment = getFieldValue(item, ['国公私']);
+        const deviation = formatDeviation(getFieldValue(item, ['偏差値', '評定']));
+        const tuition = formatCurrency(getFieldValue(item, ['年間学費', '初年度納入金', '学費']));
+        const employment = formatPercentage(getFieldValue(item, ['就職率']));
+        if (schoolType) keyInfo.push({ icon: '🎓', label: '校種', value: schoolType });
+        if (establishment) keyInfo.push({ icon: '🏛️', label: '設置', value: establishment });
+        if (deviation !== '-') keyInfo.push({ icon: '📈', label: '偏差値', value: deviation });
+        if (tuition !== '-') keyInfo.push({ icon: '💸', label: '学費', value: tuition });
+        if (employment !== '-') keyInfo.push({ icon: '💼', label: '就職率', value: employment });
 
         return {
             title: item['学校名'] || '不明',
@@ -1133,25 +1668,29 @@ function getDetailDisplayData(item, dataType) {
             keyInfo: keyInfo,
             sections: [
                 {
-                    title: '🎓 学校基本情報',
-                    icon: '🎓',
+                    title: '🏫 基本情報',
+                    icon: '🏫',
                     fields: [
                         { label: '学校名', value: item['学校名'] || '-', important: true },
                         { label: 'フリガナ', value: item['学校名ふりがな'] || '-' },
-                        { label: '校種', value: item['校種'] || '-', important: true },
-                        { label: '国公私立', value: item['国公私'] || '-', important: true },
-                        { label: '所在地', value: item['要録用所在地'] || '-' }
+                        { label: '校種', value: schoolType || '-', important: true },
+                        { label: '国公私立', value: establishment || '-', important: true },
+                        { label: '所在地', value: item['要録用所在地'] || item['所在地'] || '-' },
+                        { label: 'アクセス', value: getFieldValue(item, ['アクセス', '最寄駅', '最寄り駅']) },
+                        { label: '設立年', value: getFieldValue(item, ['設立年', '創立']) }
                     ]
                 },
                 {
-                    title: '📚 学部・学科情報',
+                    title: '📚 学部・学科詳細',
                     icon: '📚',
                     fields: [
                         { label: '学部名', value: item['学部名'] || '-', important: true },
                         { label: '学科名', value: item['学科名'] || '-', important: true },
                         { label: 'コース', value: item['コース'] || '-' },
                         { label: '専攻', value: item['専攻'] || '-' },
-                        { label: '分野', value: item['分野'] || '-' }
+                        { label: '分野', value: item['分野'] || '-' },
+                        { label: 'カリキュラム', value: getFieldValue(item, ['カリキュラム', '学びの特色', '学習内容']), multiline: true },
+                        { label: '取得可能資格', value: getFieldValue(item, ['取得可能資格', '目標資格']), multiline: true }
                     ]
                 },
                 {
@@ -1161,18 +1700,45 @@ function getDetailDisplayData(item, dataType) {
                         { label: '選考方法', value: item['選考方法'] || '-', important: true },
                         { label: '募集人数', value: item['人数枠'] ? `${item['人数枠']}名` : '-', important: true },
                         { label: '指定校推薦', value: item['指定校有無'] || '-' },
+                        { label: '出願条件', value: item['出願条件'] || '-', multiline: true },
+                        { label: '資格条件', value: item['出願条件(資格)'] || '-', multiline: true },
+                        { label: '評定平均', value: item['評定'] || '-', important: true },
+                        { label: '欠席基準', value: item['欠席'] || '-' },
                         { label: '試験日', value: formatExamDate(item) },
                         { label: '受付期間', value: item['受付期間'] || '-' }
                     ]
                 },
                 {
-                    title: '📊 出願条件・基準',
-                    icon: '📊',
+                    title: '💴 学費・奨学金',
+                    icon: '💴',
                     fields: [
-                        { label: '出願条件', value: item['出願条件'] || '-', multiline: true },
-                        { label: '資格条件', value: item['出願条件(資格)'] || '-', multiline: true },
-                        { label: '評定平均', value: item['評定'] || '-', important: true },
-                        { label: '欠席基準', value: item['欠席'] || '-' }
+                        { label: '年間学費', value: tuition, important: true },
+                        { label: '初年度納入金', value: formatCurrency(item['初年度納入金']) },
+                        { label: '入学金', value: formatCurrency(item['入学金']) },
+                        { label: '授業料', value: formatCurrency(item['授業料']) },
+                        { label: '特待生制度', value: getFieldValue(item, ['特待生制度', '奨学金']) || '-' },
+                        { label: '奨学金・支援', value: getFieldValue(item, ['奨学金情報', '学費サポート']) || '-', multiline: true }
+                    ]
+                },
+                {
+                    title: '💼 就職・進路',
+                    icon: '💼',
+                    fields: [
+                        { label: '就職率', value: employment !== '-' ? employment : '-' },
+                        { label: '主な就職先', value: getFieldValue(item, ['主な就職先', '就職先']) || '-', multiline: true },
+                        { label: '進学実績', value: getFieldValue(item, ['進学実績', '主な進学先']) || '-', multiline: true },
+                        { label: 'キャリアサポート', value: getFieldValue(item, ['キャリアサポート', '進路支援']) || '-', multiline: true }
+                    ]
+                },
+                {
+                    title: '🏠 施設・環境',
+                    icon: '🏠',
+                    fields: [
+                        { label: 'キャンパス設備', value: getFieldValue(item, ['キャンパス設備', '学内設備']) || '-', multiline: true },
+                        { label: '寮・住環境', value: getFieldValue(item, ['寮・住環境', '学生寮', '住まいサポート']) || '-' },
+                        { label: 'クラブ・サークル', value: getFieldValue(item, ['クラブ活動', '部活動']) || '-', multiline: true },
+                        { label: '留学・国際交流', value: getFieldValue(item, ['留学制度', '国際交流']) || '-', multiline: true },
+                        { label: 'オープンキャンパス', value: getFieldValue(item, ['オープンキャンパス情報']) || '-' }
                     ]
                 },
                 {
@@ -1195,8 +1761,8 @@ function getMentionTarget(item) {
     const targets = [];
     if (item['求人Ｍ'] && item['求人Ｍ'] !== '0') targets.push('男性');
     if (item['求人Ｆ'] && item['求人Ｆ'] !== '0') targets.push('女性');
-    if (item['求人ＭＫ'] && item['求人ＭＦ'] !== '0') targets.push('男女問わず');
-    
+    if (item['求人ＭＦ'] && item['求人ＭＦ'] !== '0' && targets.length === 0) targets.push('男女問わず');
+
     return targets.length > 0 ? targets.join('・') : '-';
 }
 
@@ -1307,8 +1873,9 @@ async function ensureDataset(type) {
         throw new Error('サンプルデータが空です。');
     }
 
-    datasetCache[type] = data;
-    return data;
+    const processed = preprocessDataset(data, type);
+    datasetCache[type] = processed;
+    return processed;
 }
 
 async function fetchDatasetFile(type) {
@@ -1344,6 +1911,13 @@ async function fetchDatasetFile(type) {
     return parseCSV(text);
 }
 
+function preprocessDataset(data, type) {
+    if (type === 'job') {
+        return data.map(enhanceJobRecord);
+    }
+    return data;
+}
+
 function applyDataset(type) {
     const data = datasetCache[type];
 
@@ -1362,6 +1936,9 @@ function applyDataset(type) {
 
     if (elements.searchInput) {
         elements.searchInput.value = '';
+        elements.searchInput.placeholder = type === 'job'
+            ? '企業名や職種、気になるキーワードで検索...'
+            : '学校名や特徴で検索...';
     }
     updateActiveFilterTags();
 

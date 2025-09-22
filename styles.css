@@ -258,8 +258,7 @@ header h1 {
     gap: 12px;
 }
 
-.industry-major-select,
-.industry-small-select {
+.industry-major-select {
     flex: 1 1 200px;
     display: flex;
     flex-direction: column;

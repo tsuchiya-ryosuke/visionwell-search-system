@@ -1070,13 +1070,6 @@ function getFilterConfig(dataType) {
                 description: '働きたい都道府県を選択'
             },
             {
-                field: '勤務地(市区町村)',
-                label: '🏙️ 勤務地(市区町村)',
-                type: 'select_searchable',
-                priority: 1,
-                description: '通いやすい市区町村で絞り込み'
-            },
-            {
                 field: '職業分類コード',
                 label: '🧭 職種分類コード',
                 type: 'select',

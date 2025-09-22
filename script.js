@@ -21,6 +21,79 @@ const DATASET_LABELS = {
     school: '進学'
 };
 
+function generateMediumCodes(start, end) {
+    const codes = [];
+    for (let i = start; i <= end; i++) {
+        codes.push(i.toString().padStart(2, '0'));
+    }
+    return codes;
+}
+
+const INDUSTRY_MAJOR_DEFINITIONS = [
+    { code: 'A', name: '農業,林業', mediumCodes: generateMediumCodes(1, 2) },
+    { code: 'B', name: '漁業', mediumCodes: generateMediumCodes(3, 3) },
+    { code: 'C', name: '鉱業,採石業,砂利採取業', mediumCodes: generateMediumCodes(4, 5) },
+    { code: 'D', name: '建設業', mediumCodes: generateMediumCodes(6, 8) },
+    { code: 'E', name: '製造業', mediumCodes: generateMediumCodes(9, 32) },
+    { code: 'F', name: '電気・ガス・熱供給・水道業', mediumCodes: generateMediumCodes(33, 35) },
+    { code: 'G', name: '情報通信業', mediumCodes: generateMediumCodes(36, 39) },
+    { code: 'H', name: '運輸業,郵便業', mediumCodes: generateMediumCodes(40, 49) },
+    { code: 'I', name: '卸売業,小売業', mediumCodes: generateMediumCodes(50, 60) },
+    { code: 'J', name: '金融業,保険業', mediumCodes: generateMediumCodes(61, 63) },
+    { code: 'K', name: '不動産業,物品賃貸業', mediumCodes: generateMediumCodes(64, 70) },
+    { code: 'L', name: '学術研究,専門・技術サービス業', mediumCodes: generateMediumCodes(71, 73) },
+    { code: 'M', name: '宿泊業,飲食サービス業', mediumCodes: generateMediumCodes(74, 75) },
+    { code: 'N', name: '生活関連サービス業,娯楽業', mediumCodes: generateMediumCodes(76, 79) },
+    { code: 'O', name: '教育,学習支援業', mediumCodes: generateMediumCodes(80, 80) },
+    { code: 'P', name: '医療,福祉', mediumCodes: generateMediumCodes(81, 83) },
+    { code: 'Q', name: '複合サービス事業', mediumCodes: generateMediumCodes(84, 84) },
+    { code: 'R', name: 'サービス業(他に分類されないもの)', mediumCodes: generateMediumCodes(85, 90) },
+    { code: 'S', name: '公務', mediumCodes: generateMediumCodes(91, 91) },
+    { code: 'T', name: '分類不能の産業', mediumCodes: generateMediumCodes(92, 99) }
+].map(def => ({
+    ...def,
+    label: `${def.code}:${def.name}`
+}));
+
+const INDUSTRY_MAJOR_LABEL_TO_MEDIUMS = {};
+const INDUSTRY_MEDIUM_TO_MAJOR = {};
+
+INDUSTRY_MAJOR_DEFINITIONS.forEach(def => {
+    INDUSTRY_MAJOR_LABEL_TO_MEDIUMS[def.label] = def.mediumCodes;
+    def.mediumCodes.forEach(code => {
+        INDUSTRY_MEDIUM_TO_MAJOR[code] = {
+            majorCode: def.code,
+            majorName: def.name,
+            majorLabel: def.label
+        };
+    });
+});
+
+const INDUSTRY_MAJOR_OPTIONS = INDUSTRY_MAJOR_DEFINITIONS.map(def => def.label);
+
+function getIndustryClassification(code) {
+    if (code === undefined || code === null) {
+        return null;
+    }
+
+    const raw = code.toString().trim();
+    if (!raw) {
+        return null;
+    }
+
+    const smallCode = raw.padStart(3, '0');
+    const mediumCode = smallCode.slice(0, 2);
+    const majorInfo = INDUSTRY_MEDIUM_TO_MAJOR[mediumCode] || null;
+
+    return {
+        smallCode,
+        mediumCode,
+        majorCode: majorInfo ? majorInfo.majorCode : '',
+        majorName: majorInfo ? majorInfo.majorName : '',
+        majorLabel: majorInfo ? majorInfo.majorLabel : ''
+    };
+}
+
 let datasetCache = {};
 
 const PREFECTURE_ORDER = [
@@ -461,6 +534,34 @@ function setupDataView() {
     applyFiltersAndSearch();
 }
 
+function restoreFilterSelections() {
+    Object.entries(currentFilters).forEach(([field, value]) => {
+        const fieldId = field.replace(/[()]/g, '').replace(/\s+/g, '_');
+
+        if (value && typeof value === 'object') {
+            const minInput = document.getElementById(`filter_${fieldId}_min`);
+            const maxInput = document.getElementById(`filter_${fieldId}_max`);
+
+            if (minInput && value.min !== undefined) {
+                minInput.value = value.min;
+            }
+            if (maxInput && value.max !== undefined) {
+                maxInput.value = value.max;
+            }
+        } else {
+            const select = document.getElementById(`filter_${fieldId}`);
+            if (select) {
+                select.value = value;
+            }
+
+            const searchInput = document.getElementById(`filter_search_${fieldId}`);
+            if (searchInput && typeof value === 'string') {
+                searchInput.value = value;
+            }
+        }
+    });
+}
+
 function setupFilters() {
     const filterConfig = getFilterConfig(currentDataType);
 
@@ -492,11 +593,13 @@ function setupFilters() {
     if (currentPriority > 0) {
         filterHTML += '</div>'; // 最後のグループを閉じる
     }
-    
+
     elements.filterContent.innerHTML = filterHTML;
-    
+
+    restoreFilterSelections();
     // イベントリスナーを設定
     setupFilterEventListeners();
+    updateDependentFilters();
 }
 
 function getFilterGroupTitle(dataType, priority) {
@@ -629,6 +732,15 @@ function enhanceJobRecord(item) {
     const record = { ...item };
     const remarks = record['備考'] || '';
 
+    const industryInfo = getIndustryClassification(record['産業分類コード']);
+    if (industryInfo) {
+        record['産業分類コード'] = industryInfo.smallCode;
+        record['産業中分類コード'] = industryInfo.mediumCode;
+        record['産業大分類'] = industryInfo.majorLabel || '';
+        record['産業大分類コード'] = industryInfo.majorCode || '';
+        record['産業大分類名'] = industryInfo.majorName || '';
+    }
+
     record['勤務地(市区町村)'] = extractCityFromAddress(record['所在地'] || record['就業場所'] || '');
     record['交通アクセス'] = combineAccess(record);
     record['基本給'] = record['給与(円)'];
@@ -736,11 +848,19 @@ function getFilterConfig(dataType) {
                 description: '気になる職種分類コードを選択'
             },
             {
+                field: '産業大分類',
+                label: '🌐 産業大分類',
+                type: 'select',
+                priority: 1,
+                description: '産業の大きなカテゴリで絞り込み',
+                options: INDUSTRY_MAJOR_OPTIONS
+            },
+            {
                 field: '産業分類コード',
                 label: '🏭 産業分類コード',
                 type: 'select',
                 priority: 1,
-                description: '興味のある産業分類コードを選択'
+                description: '興味のある産業分類コード（小分類）を選択'
             },
             {
                 field: '雇用形態',
@@ -958,6 +1078,24 @@ function getUniqueValues(field) {
         return [...prefectureValues, ...otherValues];
     }
 
+    if (field === '産業分類コード') {
+        const normalized = Array.from(new Set(
+            uniqueValues.map(value => value.toString().padStart(3, '0'))
+        ));
+        return normalized.sort((a, b) => a.localeCompare(b, 'ja'));
+    }
+
+    if (field === '産業中分類コード') {
+        const normalized = Array.from(new Set(
+            uniqueValues.map(value => value.toString().padStart(2, '0'))
+        ));
+        return normalized.sort((a, b) => a.localeCompare(b, 'ja'));
+    }
+
+    if (field === '産業大分類') {
+        return INDUSTRY_MAJOR_OPTIONS;
+    }
+
     return uniqueValues
         .sort((a, b) => a.localeCompare(b, 'ja'))
         .slice(0, 100); // 最大100個まで
@@ -997,12 +1135,68 @@ function getSortConfig(dataType) {
 }
 
 // フィルタ・検索・ソート処理
+function updateDependentFilters() {
+    if (currentDataType !== 'job') {
+        return false;
+    }
+
+    return updateIndustryFilterOptions();
+}
+
+function updateIndustryFilterOptions() {
+    const select = document.getElementById('filter_産業分類コード');
+    if (!select) {
+        return false;
+    }
+
+    const majorSelection = currentFilters['産業大分類'];
+    const allowedMediums = majorSelection ? (INDUSTRY_MAJOR_LABEL_TO_MEDIUMS[majorSelection] || null) : null;
+    let filtersModified = false;
+
+    Array.from(select.options).forEach(option => {
+        if (option.value === '') {
+            option.hidden = false;
+            option.disabled = false;
+            return;
+        }
+
+        const normalized = option.value.toString().padStart(3, '0');
+        const mediumCode = normalized.slice(0, 2);
+        const shouldShow = !allowedMediums || allowedMediums.includes(mediumCode);
+
+        option.hidden = !shouldShow;
+        option.disabled = !shouldShow;
+
+        if (!shouldShow && option.selected) {
+            option.selected = false;
+        }
+    });
+
+    if (allowedMediums) {
+        const selectedValue = select.value;
+        if (selectedValue) {
+            const mediumCode = selectedValue.toString().padStart(3, '0').slice(0, 2);
+            if (!allowedMediums.includes(mediumCode)) {
+                select.value = '';
+            }
+        }
+    }
+
+    if (!select.value && currentFilters['産業分類コード']) {
+        delete currentFilters['産業分類コード'];
+        filtersModified = true;
+    }
+
+    return filtersModified;
+}
+
 function updateFilter(field, value) {
     if (value) {
         currentFilters[field] = value;
     } else {
         delete currentFilters[field];
     }
+    updateDependentFilters();
     updateActiveFilterTags();
     applyFiltersAndSearch();
 }
@@ -1579,6 +1773,7 @@ function getDetailDisplayData(item, dataType) {
                         { label: '仕事内容', value: item['仕事内容詳細'] || item['仕事内容サマリー'] || '-', multiline: true },
                         { label: '職種分類', value: item['職種分類'] || '-' },
                         { label: '職業分類コード', value: item['職業分類コード'] || '-' },
+                        { label: '産業大分類', value: item['産業大分類'] || '-' },
                         { label: '産業分類コード', value: item['産業分類コード'] || '-' },
                         { label: '就業場所', value: item['就業場所'] || item['所在地'] || '-' }
                     ]

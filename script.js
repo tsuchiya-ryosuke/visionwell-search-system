@@ -1084,14 +1084,6 @@ function getFilterConfig(dataType) {
                 description: '産業の大分類で絞り込み'
             },
             {
-                field: '雇用形態',
-                label: '🧾 雇用形態',
-                type: 'select',
-                priority: 1,
-                description: '正社員・契約社員など雇用形態で絞り込み',
-                options: ['正社員', '契約社員', '派遣社員', 'パート・アルバイト', '嘱託・臨時', '情報なし']
-            },
-            {
                 field: '就業時間',
                 label: '⏰ 就業時間',
                 type: 'select',

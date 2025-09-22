@@ -84,6 +84,36 @@ header h1 {
     font-weight: bold;
 }
 
+.header-bar {
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.header-main {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dataset-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px;
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    flex-wrap: wrap;
+}
+
 /* ボタンスタイル */
 .btn {
     padding: 8px 16px;
@@ -937,48 +967,43 @@ header h1 {
     font-size: 12px;
 }
 
-/* ボトムナビゲーション */
-.bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: var(--surface-color);
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    justify-content: center;
-    padding: 8px 0;
-    z-index: 100;
-}
-
-.nav-item {
-    display: flex;
-    flex-direction: column;
+/* データセットタブ */
+.dataset-nav .nav-item {
+    display: inline-flex;
     align-items: center;
-    padding: 8px 24px;
+    gap: 6px;
+    padding: 8px 16px;
     background: none;
     border: none;
+    border-radius: 999px;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: color 0.3s ease;
+    transition: background-color 0.3s ease, color 0.3s ease;
     text-decoration: none;
 }
 
-.nav-item:hover {
+.dataset-nav .nav-item:hover {
+    background-color: rgba(52, 152, 219, 0.1);
     color: var(--primary-color);
 }
 
-.nav-item.active {
-    color: var(--primary-color);
+.dataset-nav .nav-item.active {
+    background-color: var(--primary-color);
+    color: #ffffff;
+}
+
+.dataset-nav .nav-item.active .nav-icon {
+    color: #ffffff;
 }
 
 .nav-icon {
-    font-size: 20px;
-    margin-bottom: 4px;
+    font-size: 18px;
+    margin: 0;
 }
 
 .nav-label {
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 500;
 }
 
 /* レスポンシブ対応 */
@@ -997,11 +1022,32 @@ header h1 {
     .container {
         padding: 0 15px;
     }
-    
+
     header h1 {
         font-size: 1.2rem;
     }
-    
+
+    .header-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .dataset-nav {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .dataset-nav .nav-item {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
     .data-section .container {
         grid-template-columns: 1fr;
         gap: 20px;
@@ -1265,7 +1311,7 @@ header h1 {
 /* プリント対応 */
 @media print {
     .modal,
-    .bottom-nav,
+    .dataset-nav,
     .filter-panel,
     .search-sort-bar,
     .pagination {

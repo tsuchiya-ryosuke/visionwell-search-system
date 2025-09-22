@@ -71,6 +71,43 @@ INDUSTRY_MAJOR_DEFINITIONS.forEach(def => {
 
 const INDUSTRY_MAJOR_OPTIONS = INDUSTRY_MAJOR_DEFINITIONS.map(def => def.label);
 
+function getIndustrySmallCodeOptions(majorLabel = null) {
+    const source = originalData.length ? originalData : currentData;
+    const uniqueCodes = new Map();
+
+    source.forEach(row => {
+        const info = getIndustryClassification(row['産業分類コード']);
+        if (!info || !info.smallCode) {
+            return;
+        }
+
+        if (majorLabel && info.majorLabel !== majorLabel) {
+            return;
+        }
+
+        if (!uniqueCodes.has(info.smallCode)) {
+            uniqueCodes.set(info.smallCode, {
+                code: info.smallCode,
+                majorLabel: info.majorLabel,
+                majorName: info.majorName
+            });
+        }
+    });
+
+    return Array.from(uniqueCodes.values())
+        .sort((a, b) => a.code.localeCompare(b.code, 'ja'));
+}
+
+function buildIndustrySmallOptionsHTML(majorLabel = null, selectedValue = '') {
+    const options = getIndustrySmallCodeOptions(majorLabel);
+
+    return options.map(option => {
+        const majorName = option.majorName ? `（${option.majorName}）` : '';
+        const selected = option.code === selectedValue ? ' selected' : '';
+        return `<option value="${option.code}"${selected}>${option.code}${majorName}</option>`;
+    }).join('');
+}
+
 function getIndustryClassification(code) {
     if (code === undefined || code === null) {
         return null;
@@ -594,6 +631,10 @@ function setupFilters() {
         filterHTML += '</div>'; // 最後のグループを閉じる
     }
 
+    if (!filterLabelMap['産業大分類']) {
+        filterLabelMap['産業大分類'] = '🌐 産業大分類';
+    }
+
     elements.filterContent.innerHTML = filterHTML;
 
     restoreFilterSelections();
@@ -627,6 +668,33 @@ function createFilterHTML(filter) {
     `;
     
     switch (filter.type) {
+        case 'industry_classification': {
+            const majorOptions = INDUSTRY_MAJOR_OPTIONS;
+            const selectedMajor = currentFilters['産業大分類'] || '';
+            const selectedSmall = currentFilters[filter.field] || '';
+            html += `
+                <div class="industry-classification-filter">
+                    <div class="industry-major-select">
+                        <label for="filter_${fieldId}_major">大分類</label>
+                        <select id="filter_${fieldId}_major"
+                                onchange="handleIndustryMajorFilterChange('${filter.field}', this.value)">
+                            <option value="">大分類を選択</option>
+                            ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="industry-small-select">
+                        <label for="filter_${fieldId}">小分類コード</label>
+                        <select id="filter_${fieldId}"
+                                onchange="handleIndustrySmallFilterChange('${filter.field}', this.value)">
+                            <option value="">小分類コードを選択</option>
+                            ${buildIndustrySmallOptionsHTML(selectedMajor, selectedSmall)}
+                        </select>
+                    </div>
+                </div>
+            `;
+            break;
+        }
+
         case 'select':
             const options = filter.options || getUniqueValues(filter.field);
             html += `
@@ -848,19 +916,11 @@ function getFilterConfig(dataType) {
                 description: '気になる職種分類コードを選択'
             },
             {
-                field: '産業大分類',
-                label: '🌐 産業大分類',
-                type: 'select',
-                priority: 1,
-                description: '産業の大きなカテゴリで絞り込み',
-                options: INDUSTRY_MAJOR_OPTIONS
-            },
-            {
                 field: '産業分類コード',
-                label: '🏭 産業分類コード',
-                type: 'select',
+                label: '🏭 産業分類',
+                type: 'industry_classification',
                 priority: 1,
-                description: '興味のある産業分類コード（小分類）を選択'
+                description: '産業の大分類から選択し、小分類コードで絞り込み'
             },
             {
                 field: '雇用形態',
@@ -1144,50 +1204,57 @@ function updateDependentFilters() {
 }
 
 function updateIndustryFilterOptions() {
-    const select = document.getElementById('filter_産業分類コード');
-    if (!select) {
+    const smallSelect = document.getElementById('filter_産業分類コード');
+    if (!smallSelect) {
         return false;
     }
 
-    const majorSelection = currentFilters['産業大分類'];
-    const allowedMediums = majorSelection ? (INDUSTRY_MAJOR_LABEL_TO_MEDIUMS[majorSelection] || null) : null;
-    let filtersModified = false;
+    const majorSelect = document.getElementById('filter_産業分類コード_major');
+    const majorSelection = currentFilters['産業大分類'] || '';
+    const currentValue = currentFilters['産業分類コード'] || smallSelect.value || '';
 
-    Array.from(select.options).forEach(option => {
-        if (option.value === '') {
-            option.hidden = false;
-            option.disabled = false;
-            return;
-        }
-
-        const normalized = option.value.toString().padStart(3, '0');
-        const mediumCode = normalized.slice(0, 2);
-        const shouldShow = !allowedMediums || allowedMediums.includes(mediumCode);
-
-        option.hidden = !shouldShow;
-        option.disabled = !shouldShow;
-
-        if (!shouldShow && option.selected) {
-            option.selected = false;
-        }
-    });
-
-    if (allowedMediums) {
-        const selectedValue = select.value;
-        if (selectedValue) {
-            const mediumCode = selectedValue.toString().padStart(3, '0').slice(0, 2);
-            if (!allowedMediums.includes(mediumCode)) {
-                select.value = '';
-            }
-        }
+    if (majorSelect) {
+        majorSelect.value = majorSelection;
     }
 
-    if (!select.value && currentFilters['産業分類コード']) {
+    const options = getIndustrySmallCodeOptions(majorSelection);
+    const optionCodes = options.map(option => option.code);
+    const optionsHTML = buildIndustrySmallOptionsHTML(majorSelection, currentValue);
+
+    smallSelect.innerHTML = '<option value="">小分類コードを選択</option>' + optionsHTML;
+
+    if (currentValue && optionCodes.includes(currentValue)) {
+        smallSelect.value = currentValue;
+        return false;
+    }
+
+    smallSelect.value = '';
+    if (currentFilters['産業分類コード']) {
         delete currentFilters['産業分類コード'];
-        filtersModified = true;
+        return true;
     }
 
-    return filtersModified;
+    return false;
+}
+
+function handleIndustryMajorFilterChange(field, majorLabel) {
+    updateFilter('産業大分類', majorLabel);
+}
+
+function handleIndustrySmallFilterChange(field, value) {
+    if (value) {
+        const info = getIndustryClassification(value);
+        if (info && info.majorLabel && currentFilters['産業大分類'] !== info.majorLabel) {
+            const fieldId = field.replace(/[()]/g, '').replace(/\s+/g, '_');
+            const majorSelect = document.getElementById(`filter_${fieldId}_major`);
+            if (majorSelect) {
+                majorSelect.value = info.majorLabel;
+            }
+            updateFilter('産業大分類', info.majorLabel);
+        }
+    }
+
+    updateFilter(field, value);
 }
 
 function updateFilter(field, value) {

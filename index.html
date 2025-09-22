@@ -8,10 +8,22 @@
 </head>
 <body class="auth-locked">
     <header>
-        <h1>求人・進学先検索</h1>
-        <nav>
-            <button id="themeToggle" class="btn btn-secondary">🌙 ダークモード</button>
-        </nav>
+        <div class="container header-container">
+            <h1>求人・進学先検索</h1>
+            <div class="header-actions">
+                <nav class="dataset-tabs">
+                    <button class="nav-item active" data-dataset="job">
+                        <span class="nav-icon">💼</span>
+                        <span class="nav-label">就職</span>
+                    </button>
+                    <button class="nav-item" data-dataset="school">
+                        <span class="nav-icon">🎓</span>
+                        <span class="nav-label">進学</span>
+                    </button>
+                </nav>
+                <button id="themeToggle" class="btn btn-secondary">🌙 ダークモード</button>
+            </div>
+        </div>
     </header>
 
     <main>
@@ -79,18 +91,6 @@
             </div>
         </div>
     </div>
-
-    <!-- ナビゲーションメニュー -->
-    <nav class="bottom-nav">
-        <button class="nav-item active" data-dataset="job">
-            <span class="nav-icon">💼</span>
-            <span class="nav-label">就職</span>
-        </button>
-        <button class="nav-item" data-dataset="school">
-            <span class="nav-icon">🎓</span>
-            <span class="nav-label">進学</span>
-        </button>
-    </nav>
 
     <script src="script.js"></script>
 </body>

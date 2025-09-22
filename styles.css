@@ -76,12 +76,19 @@ header .container {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 20px;
 }
 
 header h1 {
     color: var(--primary-color);
     font-size: 1.5rem;
     font-weight: bold;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
 }
 
 /* ボタンスタイル */
@@ -939,48 +946,48 @@ header h1 {
     font-size: 12px;
 }
 
-/* ボトムナビゲーション */
-.bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: var(--surface-color);
-    border-top: 1px solid var(--border-color);
+/* データセット切り替えタブ */
+.dataset-tabs {
     display: flex;
-    justify-content: center;
-    padding: 8px 0;
-    z-index: 100;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
 }
 
-.nav-item {
-    display: flex;
-    flex-direction: column;
+.dataset-tabs .nav-item {
+    display: inline-flex;
     align-items: center;
-    padding: 8px 24px;
+    gap: 6px;
+    padding: 8px 18px;
     background: none;
     border: none;
+    border-radius: 999px;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: color 0.3s ease;
-    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.nav-item:hover {
+.dataset-tabs .nav-item:hover {
     color: var(--primary-color);
 }
 
-.nav-item.active {
-    color: var(--primary-color);
+.dataset-tabs .nav-item.active {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    box-shadow: var(--shadow);
 }
 
-.nav-icon {
-    font-size: 20px;
-    margin-bottom: 4px;
+.dataset-tabs .nav-icon {
+    font-size: 18px;
 }
 
-.nav-label {
-    font-size: 12px;
+.dataset-tabs .nav-label {
+    font-size: 13px;
 }
 
 /* レスポンシブ対応 */
@@ -994,7 +1001,29 @@ header h1 {
     .container {
         padding: 0 15px;
     }
-    
+
+    .header-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .header-actions {
+        flex-wrap: wrap;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .dataset-tabs {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .dataset-tabs .nav-item {
+        flex: 1 1 0;
+        justify-content: center;
+    }
+
     header h1 {
         font-size: 1.2rem;
     }
@@ -1254,7 +1283,7 @@ header h1 {
 /* プリント対応 */
 @media print {
     .modal,
-    .bottom-nav,
+    .dataset-tabs,
     .filter-panel,
     .search-sort-bar,
     .pagination {

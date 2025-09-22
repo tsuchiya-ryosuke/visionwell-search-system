@@ -396,7 +396,7 @@ function setupEventListeners() {
 }
 
 function setupDatasetTabs() {
-    const tabs = document.querySelectorAll('.bottom-nav .nav-item');
+    const tabs = document.querySelectorAll('.dataset-tabs .nav-item');
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -1959,7 +1959,7 @@ function applyDataset(type) {
 }
 
 function setActiveDatasetTab(type) {
-    const tabs = document.querySelectorAll('.bottom-nav .nav-item');
+    const tabs = document.querySelectorAll('.dataset-tabs .nav-item');
 
     tabs.forEach(tab => {
         if (tab.dataset.dataset === type) {

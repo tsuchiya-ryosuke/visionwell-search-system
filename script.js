@@ -33,167 +33,6 @@ const PREFECTURE_ORDER = [
     '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県'
 ];
 
-const INDUSTRY_LARGE_CLASSIFICATIONS = [
-    { code: 'A', name: '農業,林業', middleCodes: ['01', '02'] },
-    { code: 'B', name: '漁業', middleCodes: ['03', '04'] },
-    { code: 'C', name: '鉱業,採石業,砂利採取業', middleCodes: ['05'] },
-    { code: 'D', name: '建設業', middleCodes: ['06', '07', '08'] },
-    {
-        code: 'E',
-        name: '製造業',
-        middleCodes: [
-            '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
-            '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30',
-            '31', '32'
-        ]
-    },
-    { code: 'F', name: '電気・ガス・熱供給・水道業', middleCodes: ['33', '34', '35', '36'] },
-    { code: 'G', name: '情報通信業', middleCodes: ['37', '38', '39', '40', '41'] },
-    {
-        code: 'H',
-        name: '運輸業,郵便業',
-        middleCodes: ['42', '43', '44', '45', '46', '47', '48', '49']
-    },
-    {
-        code: 'I',
-        name: '卸売業,小売業',
-        middleCodes: ['50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '60']
-    },
-    { code: 'J', name: '金融業,保険業', middleCodes: ['61', '62', '63', '64'] },
-    {
-        code: 'K',
-        name: '不動産業,物品賃貸業',
-        middleCodes: ['65', '66', '67', '68', '69', '70', '71', '72']
-    },
-    { code: 'L', name: '学術研究,専門・技術サービス業', middleCodes: ['73', '74'] },
-    { code: 'M', name: '宿泊業,飲食サービス業', middleCodes: ['75', '76', '77'] },
-    { code: 'N', name: '生活関連サービス業,娯楽業', middleCodes: ['78', '79', '80'] },
-    { code: 'O', name: '教育,学習支援業', middleCodes: ['81', '82'] },
-    { code: 'P', name: '医療,福祉', middleCodes: ['83', '84', '85', '86'] },
-    { code: 'Q', name: '複合サービス事業', middleCodes: ['87'] },
-    {
-        code: 'R',
-        name: 'サービス業(他に分類されないもの)',
-        middleCodes: ['88', '89', '90', '91', '92', '93', '94', '95']
-    },
-    { code: 'S', name: '公務(他に分類されるものを除く)', middleCodes: ['96'] },
-    { code: 'T', name: '分類不能の産業', middleCodes: ['97', '98', '99'] }
-];
-
-const INDUSTRY_MIDDLE_NAMES = {
-    '01': '農業',
-    '02': '林業',
-    '03': '漁業',
-    '04': '水産養殖業',
-    '05': '鉱業,採石業,砂利採取業',
-    '06': '総合工事業',
-    '07': '職別工事業(設備工事業を除く)',
-    '08': '設備工事業',
-    '09': '食料品製造業',
-    '10': '飲料・たばこ・飼料製造業',
-    '11': '繊維工業',
-    '12': '木材・木製品製造業(家具を除く)',
-    '13': '家具・装備品製造業',
-    '14': 'パルプ・紙・紙加工品製造業',
-    '15': '印刷・同関連業',
-    '16': '化学工業',
-    '17': '石油製品・石炭製品製造業',
-    '18': 'プラスチック製品製造業(別記を除く)',
-    '19': 'ゴム製品製造業',
-    '20': 'なめし革・同製品・毛皮製造業',
-    '21': '窯業・土石製品製造業',
-    '22': '鉄鋼業',
-    '23': '非鉄金属製造業',
-    '24': '金属製品製造業',
-    '25': 'はん用機械器具製造業',
-    '26': '生産用機械器具製造業',
-    '27': '業務用機械器具製造業',
-    '28': '電子部品・デバイス・電子回路製造業',
-    '29': '電気機械器具製造業',
-    '30': '情報通信機械器具製造業',
-    '31': '輸送用機械器具製造業',
-    '32': 'その他の製造業',
-    '33': '電気業',
-    '34': 'ガス業',
-    '35': '熱供給業',
-    '36': '水道業',
-    '37': '通信業',
-    '38': '放送業',
-    '39': '情報サービス業',
-    '40': 'インターネット附随サービス業',
-    '41': '映像・音声・文字情報制作業',
-    '42': '鉄道業',
-    '43': '道路旅客運送業',
-    '44': '道路貨物運送業',
-    '45': '水運業',
-    '46': '航空運輸業',
-    '47': '倉庫業',
-    '48': '運輸に附帯するサービス業',
-    '49': '郵便業(信書便事業を含む)',
-    '50': '各種商品卸売業',
-    '51': '繊維・衣服等卸売業',
-    '52': '飲料・食料品卸売業',
-    '53': '建築材料,鉱物・金属材料等卸売業',
-    '54': '機械器具卸売業',
-    '55': 'その他の卸売業',
-    '56': '各種商品小売業',
-    '57': '織物・衣服・身の回り品小売業',
-    '58': '飲料・食料品小売業',
-    '59': '機械器具小売業',
-    '60': 'その他の小売業',
-    '61': '銀行業',
-    '62': '協同組織金融業',
-    '63': '貸金業・クレジットカード業等',
-    '64': '保険業',
-    '65': '不動産取引業',
-    '66': '不動産賃貸業・管理業',
-    '67': '物品賃貸業',
-    '68': '物品賃貸業(その他)',
-    '69': '不動産・物品賃貸支援活動',
-    '70': 'その他の物品賃貸業',
-    '71': '不動産賃貸支援サービス',
-    '72': '物品賃貸・関連サービス',
-    '73': '学術・開発研究機関',
-    '74': '専門サービス業(他に分類されないもの)',
-    '75': '宿泊業',
-    '76': '飲食サービス業',
-    '77': '飲食関連サービス業',
-    '78': '洗濯・理容・美容・浴場業',
-    '79': 'その他の生活関連サービス業',
-    '80': '娯楽業',
-    '81': '学校教育',
-    '82': 'その他の教育・学習支援業',
-    '83': '医療業',
-    '84': '保健衛生',
-    '85': '社会保険・社会福祉・介護事業',
-    '86': '福祉関連サービス',
-    '87': '複合サービス事業',
-    '88': '廃棄物処理業',
-    '89': '自動車整備業',
-    '90': 'その他のサービス業',
-    '91': '政治・経済・文化活動支援',
-    '92': '専門団体・業界団体',
-    '93': '職業・同業団体',
-    '94': '宗教',
-    '95': '政治団体',
-    '96': '公務',
-    '97': '分類不能の産業',
-    '98': '分類不能の産業',
-    '99': '分類不能の産業'
-};
-
-const INDUSTRY_MIDDLE_TO_LARGE = new Map();
-const INDUSTRY_LARGE_LABEL_MAP = new Map();
-
-INDUSTRY_LARGE_CLASSIFICATIONS.forEach(category => {
-    const label = `${category.code}: ${category.name}`;
-    category.label = label;
-    INDUSTRY_LARGE_LABEL_MAP.set(label, category);
-    category.middleCodes.forEach(code => {
-        INDUSTRY_MIDDLE_TO_LARGE.set(code, category);
-    });
-});
-
 const AUTH_PASSWORD = 'visionwell1001';
 let isAuthenticated = false;
 
@@ -232,102 +71,6 @@ function normalizeNumber(value) {
 
     const num = parseFloat(cleaned);
     return isNaN(num) ? null : num;
-}
-
-function normalizeIndustryCode(value) {
-    if (value === undefined || value === null) {
-        return '';
-    }
-
-    const digits = value.toString().trim().replace(/\D/g, '');
-    if (!digits) {
-        return '';
-    }
-
-    return digits.padStart(3, '0');
-}
-
-function getIndustryLargeLabel(category) {
-    if (!category) {
-        return '';
-    }
-    return category.label || `${category.code}: ${category.name}`;
-}
-
-function getIndustryMiddleLabel(code) {
-    if (!code) {
-        return '';
-    }
-    const name = INDUSTRY_MIDDLE_NAMES[code];
-    return name ? `${code}: ${name}` : code;
-}
-
-function getFilterSelectElement(field) {
-    const fieldId = field.replace(/[()]/g, '').replace(/\s+/g, '_');
-    return document.getElementById(`filter_${fieldId}`);
-}
-
-function updateIndustryFilterOptions() {
-    const largeSelect = getFilterSelectElement('産業大分類');
-    const middleSelect = getFilterSelectElement('産業中分類コード');
-    const smallSelect = getFilterSelectElement('産業分類コード');
-
-    const selectedLarge = currentFilters['産業大分類'] || (largeSelect ? largeSelect.value : '');
-    const largeCategory = INDUSTRY_LARGE_LABEL_MAP.get(selectedLarge) || null;
-    const allowedMiddleCodes = largeCategory ? new Set(largeCategory.middleCodes) : null;
-
-    if (middleSelect) {
-        let shouldClearMiddle = false;
-        Array.from(middleSelect.options).forEach(option => {
-            if (!option.value) {
-                option.hidden = false;
-                option.disabled = false;
-                return;
-            }
-
-            const isAllowed = !allowedMiddleCodes || allowedMiddleCodes.has(option.value);
-            option.hidden = !isAllowed;
-            option.disabled = !isAllowed;
-            if (!isAllowed && option.selected) {
-                shouldClearMiddle = true;
-            }
-        });
-
-        if (shouldClearMiddle) {
-            middleSelect.value = '';
-            updateFilter('産業中分類コード', '');
-        }
-    }
-
-    const selectedMiddle = currentFilters['産業中分類コード'] || (middleSelect ? middleSelect.value : '');
-    const allowedSmallPrefixes = selectedMiddle
-        ? new Set([selectedMiddle])
-        : allowedMiddleCodes;
-
-    if (smallSelect) {
-        let shouldClearSmall = false;
-        Array.from(smallSelect.options).forEach(option => {
-            if (!option.value) {
-                option.hidden = false;
-                option.disabled = false;
-                return;
-            }
-
-            const normalized = normalizeIndustryCode(option.value);
-            const prefix = normalized.slice(0, 2);
-            const isAllowed = !allowedSmallPrefixes || allowedSmallPrefixes.has(prefix);
-            option.hidden = !isAllowed;
-            option.disabled = !isAllowed;
-            if (!isAllowed && option.selected) {
-                shouldClearSmall = true;
-            }
-        });
-
-        if (shouldClearSmall) {
-            smallSelect.value = '';
-            updateFilter('産業分類コード', '');
-        }
-    }
 }
 
 function formatCurrency(value, unit = '円') {
@@ -751,10 +494,9 @@ function setupFilters() {
     }
     
     elements.filterContent.innerHTML = filterHTML;
-
+    
     // イベントリスナーを設定
     setupFilterEventListeners();
-    updateIndustryFilterOptions();
 }
 
 function getFilterGroupTitle(dataType, priority) {
@@ -887,14 +629,6 @@ function enhanceJobRecord(item) {
     const record = { ...item };
     const remarks = record['備考'] || '';
 
-    const normalizedIndustryCode = normalizeIndustryCode(record['産業分類コード']);
-    record['産業分類コード'] = normalizedIndustryCode;
-    const industryMiddleCode = normalizedIndustryCode ? normalizedIndustryCode.slice(0, 2) : '';
-    record['産業中分類コード'] = industryMiddleCode;
-    record['産業中分類'] = industryMiddleCode ? getIndustryMiddleLabel(industryMiddleCode) : '';
-    const industryLarge = INDUSTRY_MIDDLE_TO_LARGE.get(industryMiddleCode);
-    record['産業大分類'] = industryLarge ? getIndustryLargeLabel(industryLarge) : '';
-
     record['勤務地(市区町村)'] = extractCityFromAddress(record['所在地'] || record['就業場所'] || '');
     record['交通アクセス'] = combineAccess(record);
     record['基本給'] = record['給与(円)'];
@@ -1002,26 +736,11 @@ function getFilterConfig(dataType) {
                 description: '気になる職種分類コードを選択'
             },
             {
-                field: '産業大分類',
-                label: '🏢 産業大分類',
-                type: 'select',
-                priority: 1,
-                description: '産業の大区分を選択',
-                options: INDUSTRY_LARGE_CLASSIFICATIONS.map(category => getIndustryLargeLabel(category))
-            },
-            {
-                field: '産業中分類コード',
-                label: '🏗️ 産業中分類コード',
-                type: 'select',
-                priority: 1,
-                description: '産業の中分類コード(2桁)で絞り込み'
-            },
-            {
                 field: '産業分類コード',
                 label: '🏭 産業分類コード',
                 type: 'select',
                 priority: 1,
-                description: '興味のある産業分類コード(3桁)を選択'
+                description: '興味のある産業分類コードを選択'
             },
             {
                 field: '雇用形態',
@@ -1284,7 +1003,6 @@ function updateFilter(field, value) {
     } else {
         delete currentFilters[field];
     }
-    updateIndustryFilterOptions();
     updateActiveFilterTags();
     applyFiltersAndSearch();
 }

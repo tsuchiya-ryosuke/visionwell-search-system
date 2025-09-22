@@ -1084,14 +1084,6 @@ function getFilterConfig(dataType) {
                 description: '産業の大分類で絞り込み'
             },
             {
-                field: '就業時間',
-                label: '⏰ 就業時間',
-                type: 'select',
-                priority: 1,
-                description: '日勤・交代制など働き方を選択',
-                options: ['日勤中心', '交代制あり', 'シフト勤務', '夜勤あり', 'フレックスタイム制', '情報なし']
-            },
-            {
                 field: '給与(円)',
                 label: '💰 基本給',
                 type: 'salary_range',

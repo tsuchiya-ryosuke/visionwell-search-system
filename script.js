@@ -1239,7 +1239,7 @@ function getFilterConfig(dataType) {
                 field: '就職率',
                 label: '💼 就職率',
                 type: 'range',
-                priority: 3,
+                priority: 2,
                 description: '就職率や進路実績を確認',
                 min: 0,
                 max: 100,
@@ -1249,14 +1249,14 @@ function getFilterConfig(dataType) {
                 field: '寮・住環境',
                 label: '🏠 寮・住環境',
                 type: 'select',
-                priority: 3,
+                priority: 2,
                 description: '学生寮や住まいサポート情報'
             },
             {
                 field: 'オープンキャンパス情報',
                 label: '🎪 オープンキャンパス',
                 type: 'select',
-                priority: 3,
+                priority: 2,
                 description: 'イベント情報から選択'
             }
         ];

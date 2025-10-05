@@ -777,7 +777,10 @@ function setupFilters() {
     initializeFilterGroupToggleIcons();
     // イベントリスナーを設定
     setupFilterEventListeners();
-    updateDependentFilters();
+    const dependenciesChanged = updateDependentFilters();
+    if (dependenciesChanged) {
+        updateActiveFilterTags();
+    }
 }
 
 function getFilterGroupTitle(dataType, priority) {
@@ -849,6 +852,28 @@ function createFilterHTML(filter) {
                 <select id="filter_${fieldId}" onchange="updateFilter('${filter.field}', this.value)">
                     <option value="">選択してください</option>
                     ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                </select>
+            `;
+            break;
+
+        case 'prefecture_city':
+            const prefectureField = filter.dependsOn || '都道府県';
+            const selectedPrefecture = currentFilters[prefectureField] || '';
+            const selectedCity = currentFilters[filter.field] || '';
+            const cityOptions = selectedPrefecture
+                ? getCityOptions(filter.field, prefectureField, selectedPrefecture)
+                : [];
+            const cityPlaceholder = selectedPrefecture ? '市区町村を選択してください' : '先に都道府県を選択';
+            const cityDisabled = selectedPrefecture ? '' : 'disabled';
+            html += `
+                <select id="filter_${fieldId}"
+                        data-filter-type="prefecture_city"
+                        data-city-field="${filter.field}"
+                        data-prefecture-field="${prefectureField}"
+                        onchange="updateFilter('${filter.field}', this.value)"
+                        ${cityDisabled}>
+                    <option value="">${cityPlaceholder}</option>
+                    ${cityOptions.map(opt => `<option value="${opt}"${opt === selectedCity ? ' selected' : ''}>${opt}</option>`).join('')}
                 </select>
             `;
             break;
@@ -1016,6 +1041,13 @@ function enhanceJobRecord(item) {
     return record;
 }
 
+function enhanceSchoolRecord(item) {
+    const record = { ...item };
+    const baseAddress = record['要録用所在地'] || record['所在地'] || '';
+    record['所在地(市区町村)'] = extractCityFromAddress(baseAddress);
+    return record;
+}
+
 function filterSelectOptions(field, searchTerm) {
     const fieldId = field.replace(/[()]/g, '').replace(/\s+/g, '_');
     const select = document.getElementById(`filter_${fieldId}`);
@@ -1053,10 +1085,30 @@ function setSalaryRange(field, min, max) {
 function setCompanySize(field, min, max) {
     updateRangeFilter(field, 'min', min);
     updateRangeFilter(field, 'max', max);
-    
+
     // ボタンのアクティブ状態を更新
     document.querySelectorAll('.size-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
+}
+
+function getCityOptions(cityField, prefectureField, selectedPrefecture) {
+    const source = originalData.length ? originalData : currentData;
+    const citySet = new Set();
+
+    source.forEach(row => {
+        const prefecture = row[prefectureField] || '';
+        const city = row[cityField] || '';
+
+        if (!city) {
+            return;
+        }
+
+        if (!selectedPrefecture || prefecture === selectedPrefecture) {
+            citySet.add(city);
+        }
+    });
+
+    return Array.from(citySet).sort((a, b) => a.localeCompare(b, 'ja'));
 }
 
 function getFilterConfig(dataType) {
@@ -1068,6 +1120,14 @@ function getFilterConfig(dataType) {
                 type: 'select',
                 priority: 1,
                 description: '働きたい都道府県を選択'
+            },
+            {
+                field: '勤務地(市区町村)',
+                label: '🏙️ 勤務地(市区町村)',
+                type: 'prefecture_city',
+                priority: 1,
+                description: '選択した都道府県内の市区町村を選択',
+                dependsOn: '都道府県'
             },
             {
                 field: '職種大分類',
@@ -1164,6 +1224,14 @@ function getFilterConfig(dataType) {
                 type: 'select',
                 priority: 1,
                 description: '通学したい地域を選んでください'
+            },
+            {
+                field: '所在地(市区町村)',
+                label: '🏙️ 市区町村',
+                type: 'prefecture_city',
+                priority: 1,
+                description: '選択した都道府県内の市区町村を選んでください',
+                dependsOn: '都道府県'
             },
             {
                 field: '校種',
@@ -1352,13 +1420,70 @@ function getSortConfig(dataType) {
 
 // フィルタ・検索・ソート処理
 function updateDependentFilters() {
-    if (currentDataType !== 'job') {
+    const cityChanged = updatePrefectureCityFilterOptions();
+
+    if (currentDataType === 'job') {
+        const industryChanged = updateIndustryFilterOptions();
+        const jobChanged = updateJobClassificationFilterOptions();
+        return cityChanged || industryChanged || jobChanged;
+    }
+
+    return cityChanged;
+}
+
+function updatePrefectureCityFilterOptions() {
+    const selects = document.querySelectorAll('select[data-filter-type="prefecture_city"]');
+
+    if (selects.length === 0) {
         return false;
     }
 
-    const industryChanged = updateIndustryFilterOptions();
-    const jobChanged = updateJobClassificationFilterOptions();
-    return industryChanged || jobChanged;
+    let filtersChanged = false;
+
+    selects.forEach(select => {
+        const cityField = select.dataset.cityField;
+        const prefectureField = select.dataset.prefectureField;
+
+        if (!cityField || !prefectureField) {
+            return;
+        }
+
+        const selectedPrefecture = currentFilters[prefectureField] || '';
+        const selectedCity = currentFilters[cityField] || '';
+        const previousValue = select.value || selectedCity;
+
+        if (!selectedPrefecture) {
+            select.innerHTML = '<option value="">先に都道府県を選択</option>';
+            select.value = '';
+            select.disabled = true;
+
+            if (currentFilters[cityField]) {
+                delete currentFilters[cityField];
+                filtersChanged = true;
+            }
+            return;
+        }
+
+        const options = getCityOptions(cityField, prefectureField, selectedPrefecture);
+
+        select.disabled = false;
+        select.innerHTML = '<option value="">市区町村を選択してください</option>' +
+            options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+
+        const valueToRestore = selectedCity || previousValue;
+
+        if (valueToRestore && options.includes(valueToRestore)) {
+            select.value = valueToRestore;
+        } else {
+            select.value = '';
+            if (currentFilters[cityField]) {
+                delete currentFilters[cityField];
+                filtersChanged = true;
+            }
+        }
+    });
+
+    return filtersChanged;
 }
 
 function updateIndustryFilterOptions() {
@@ -2381,6 +2506,9 @@ async function fetchDatasetFile(type) {
 function preprocessDataset(data, type) {
     if (type === 'job') {
         return data.map(enhanceJobRecord);
+    }
+    if (type === 'school') {
+        return data.map(enhanceSchoolRecord);
     }
     return data;
 }

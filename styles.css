@@ -331,6 +331,59 @@ header h1 {
     box-shadow: var(--shadow);
 }
 
+.grouped-multi-select {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.grouped-multi-select .multi-select-search input {
+    margin-bottom: 0;
+}
+
+.grouped-multi-select .multi-select-groups {
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    background-color: var(--bg-color);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.grouped-multi-select .multi-select-group-header {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.grouped-multi-select .multi-select-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 6px 12px;
+}
+
+.grouped-multi-select .multi-select-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-color);
+}
+
+.grouped-multi-select .multi-select-option input {
+    width: auto;
+    margin-top: 2px;
+}
+
+.grouped-multi-select .empty-options {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
 /* 給与範囲フィルタ */
 .salary-range-filter {
     display: flex;
@@ -1105,12 +1158,20 @@ header h1 {
     .filter-header h4 {
         font-size: 13px;
     }
-    
+
     .filter-description {
         font-size: 11px;
         margin-bottom: 8px;
     }
-    
+
+    .grouped-multi-select .multi-select-groups {
+        max-height: 300px;
+    }
+
+    .grouped-multi-select .multi-select-options {
+        grid-template-columns: 1fr;
+    }
+
     .search-sort-bar {
         flex-direction: column;
         align-items: stretch;

@@ -109,6 +109,28 @@ JOB_CLASSIFICATION_MAJOR_DEFINITIONS.forEach(def => {
 
 const JOB_MAJOR_OPTIONS = JOB_CLASSIFICATION_MAJOR_DEFINITIONS.map(def => def.label);
 
+const DEFAULT_ACADEMIC_GROUP_LABEL = 'その他・総合';
+const ACADEMIC_GROUP_PATTERNS = [
+    { label: '医療・看護・福祉', keywords: ['医学', '医療', '看護', '福祉', '保健', 'リハビリ', 'リハビリテーション', '薬学', '薬剤', '臨床', '健康', '栄養', '作業療法', '理学療法', '診療', '検査', '放射線', '救急', 'リハ', '医療技術', '医療福祉', '医療保健'] },
+    { label: '教育・保育', keywords: ['教育', '教職', '保育', '幼児', '児童', '子ども', 'こども', '養護', '初等', '中等', '特別支援'] },
+    { label: '経済・経営・商', keywords: ['経済', '経営', '商学', '商業', '会計', 'ビジネス', '流通', 'マーケティング', 'マネジメント', '金融', '観光マネジメント', 'ホスピタリティ', '国際経営'] },
+    { label: '人文・社会・国際', keywords: ['文学', '文芸', '人文', '外国語', '英語', '言語', '国際', '教養', '人間', '社会', '社会学', '心理', 'コミュニケーション', 'メディア', '観光', '文化', '歴史', '地域', '現代', 'グローバル', '日本', 'アジア', 'リベラルアーツ'] },
+    { label: '法・政治・政策', keywords: ['法学', '法律', '政治', '政策', '公共', '行政', '国際関係', 'リーガル'] },
+    { label: '理工・情報', keywords: ['理工', '理学', '工学', '情報', '科学', 'サイエンス', 'テクノロジー', '機械', '電気', '電子', '建築', '土木', '環境', '数理', '数学', '物理', '化学', '生命科学', '工業', 'システム', 'データ', 'AI', 'コンピュータ', '材料', '航空', '宇宙', 'エネルギー', '制御', '通信', 'ロボット', '応用理', '応用化学'] },
+    { label: '芸術・スポーツ', keywords: ['芸術', '美術', '音楽', '舞台', '映像', 'デザイン', 'アート', '造形', 'スポーツ', '体育', 'ダンス', '表現', 'パフォーマンス'] },
+    { label: '生活・家政・食', keywords: ['家政', '生活', '食物', '食', 'フード', '調理', '製菓', '住居', '人間生活', 'ライフデザイン', '衣'] },
+    { label: '農学・生命・自然', keywords: ['農', '生命', 'バイオ', '食農', '水産', '動物', '獣医', '植物', '農芸', '園芸', '酪農', '森林', '自然', '海洋', 'アグリ', '資源', '里山'] }
+];
+
+const DEFAULT_EXAM_METHOD_GROUP_LABEL = 'その他';
+const EXAM_METHOD_GROUP_PATTERNS = [
+    { label: '書類選考', keywords: ['書類'] },
+    { label: '小論文・作文・プレゼン', keywords: ['小論文', '作文', 'プレゼン', '講義レポート', 'レポート', '発表'] },
+    { label: '面接・口頭', keywords: ['面接', '口頭試問', 'グループ面接'] },
+    { label: '学科・筆記・適性', keywords: ['学科', '学力', '筆記', '適性', '検査', 'テスト'] },
+    { label: '活動評価・その他', keywords: ['課外活動', '活動評価', '課題', '評価'] }
+];
+
 function getAvailableIndustryMajorOptions() {
     const source = originalData.length ? originalData : currentData;
     const majorsWithData = new Set();
@@ -199,6 +221,92 @@ function getJobClassification(code) {
         majorName: majorInfo ? majorInfo.majorName : '',
         majorLabel: majorInfo ? majorInfo.majorLabel : ''
     };
+}
+
+function escapeHtml(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
+
+    return text.toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function buildGroupedOptions(values, classifier, groupOrder, defaultLabel = '') {
+    const grouped = new Map();
+
+    values.forEach(value => {
+        if (!value) {
+            return;
+        }
+
+        const groupLabel = classifier(value) || defaultLabel || DEFAULT_ACADEMIC_GROUP_LABEL;
+        if (!grouped.has(groupLabel)) {
+            grouped.set(groupLabel, new Set());
+        }
+
+        grouped.get(groupLabel).add(value);
+    });
+
+    const orderedLabels = groupOrder && groupOrder.length
+        ? groupOrder
+        : Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b, 'ja'));
+
+    return orderedLabels
+        .filter(label => grouped.has(label))
+        .map(label => ({
+            label,
+            options: Array.from(grouped.get(label))
+                .sort((a, b) => a.localeCompare(b, 'ja'))
+        }));
+}
+
+function classifyAcademicGroup(name) {
+    if (!name) {
+        return DEFAULT_ACADEMIC_GROUP_LABEL;
+    }
+
+    const normalized = name.toString().replace(/\s+/g, '');
+
+    for (const pattern of ACADEMIC_GROUP_PATTERNS) {
+        if (pattern.keywords.some(keyword => normalized.includes(keyword))) {
+            return pattern.label;
+        }
+    }
+
+    return DEFAULT_ACADEMIC_GROUP_LABEL;
+}
+
+function getAcademicGroupedOptions(field) {
+    const values = getUniqueValues(field);
+    const order = [...ACADEMIC_GROUP_PATTERNS.map(pattern => pattern.label), DEFAULT_ACADEMIC_GROUP_LABEL];
+    return buildGroupedOptions(values, classifyAcademicGroup, order, DEFAULT_ACADEMIC_GROUP_LABEL);
+}
+
+function classifyExamMethodGroup(value) {
+    if (!value) {
+        return DEFAULT_EXAM_METHOD_GROUP_LABEL;
+    }
+
+    const normalized = value.toString().replace(/\s+/g, '');
+
+    for (const pattern of EXAM_METHOD_GROUP_PATTERNS) {
+        if (pattern.keywords.some(keyword => normalized.includes(keyword))) {
+            return pattern.label;
+        }
+    }
+
+    return DEFAULT_EXAM_METHOD_GROUP_LABEL;
+}
+
+function getExamMethodGroupedOptions() {
+    const values = getUniqueValues('選考方法');
+    const order = [...EXAM_METHOD_GROUP_PATTERNS.map(pattern => pattern.label), DEFAULT_EXAM_METHOD_GROUP_LABEL];
+    return buildGroupedOptions(values, classifyExamMethodGroup, order, DEFAULT_EXAM_METHOD_GROUP_LABEL);
 }
 
 let datasetCache = {};
@@ -645,7 +753,15 @@ function restoreFilterSelections() {
     Object.entries(currentFilters).forEach(([field, value]) => {
         const fieldId = field.replace(/[()]/g, '').replace(/\s+/g, '_');
 
-        if (value && typeof value === 'object') {
+        if (Array.isArray(value)) {
+            const container = getGroupedMultiSelectContainer(field);
+            if (container) {
+                const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = value.includes(checkbox.value);
+                });
+            }
+        } else if (value && typeof value === 'object') {
             const minInput = document.getElementById(`filter_${fieldId}_min`);
             const maxInput = document.getElementById(`filter_${fieldId}_max`);
 
@@ -821,6 +937,74 @@ function createFilterHTML(filter) {
                             <option value="">大分類を選択</option>
                             ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
                         </select>
+                    </div>
+                </div>
+            `;
+            break;
+        }
+
+        case 'grouped_multi_select': {
+            const groups = typeof filter.getOptions === 'function'
+                ? filter.getOptions()
+                : [];
+            const availableValues = new Set();
+            groups.forEach(group => {
+                (group.options || []).forEach(option => availableValues.add(option));
+            });
+
+            const previousSelections = Array.isArray(currentFilters[filter.field])
+                ? currentFilters[filter.field]
+                : [];
+            const sanitizedSelections = previousSelections.filter(value => availableValues.has(value));
+
+            if (previousSelections.length && sanitizedSelections.length !== previousSelections.length) {
+                if (sanitizedSelections.length) {
+                    currentFilters[filter.field] = sanitizedSelections;
+                } else {
+                    delete currentFilters[filter.field];
+                }
+            }
+
+            const selectedValues = Array.isArray(currentFilters[filter.field])
+                ? currentFilters[filter.field]
+                : sanitizedSelections;
+
+            const searchPlaceholder = filter.searchPlaceholder || 'キーワードで検索';
+
+            if (groups.length === 0) {
+                html += `
+                    <div class="grouped-multi-select" data-field="${filter.field}">
+                        <p class="empty-options">選択肢が見つかりません</p>
+                    </div>
+                `;
+                break;
+            }
+
+            html += `
+                <div class="grouped-multi-select" data-field="${filter.field}">
+                    <div class="multi-select-search">
+                        <input type="text" id="filter_search_${fieldId}" placeholder="${escapeHtml(searchPlaceholder)}"
+                               oninput="filterGroupedMultiSelectOptions('${filter.field}', this.value)">
+                    </div>
+                    <div class="multi-select-groups">
+                        ${groups.map(group => `
+                            <div class="multi-select-group">
+                                <div class="multi-select-group-header">${escapeHtml(group.label)}</div>
+                                <div class="multi-select-options">
+                                    ${(group.options || []).map(option => {
+                                        const safeValue = escapeHtml(option);
+                                        const isChecked = selectedValues.includes(option);
+                                        return `
+                                            <label class="multi-select-option">
+                                                <input type="checkbox" value="${safeValue}" ${isChecked ? 'checked' : ''}
+                                                       onchange="toggleMultiSelectOption('${filter.field}', this.value, this.checked)">
+                                                <span>${safeValue}</span>
+                                            </label>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             `;
@@ -1052,7 +1236,7 @@ function filterSelectOptions(field, searchTerm) {
     const fieldId = field.replace(/[()]/g, '').replace(/\s+/g, '_');
     const select = document.getElementById(`filter_${fieldId}`);
     const options = select.querySelectorAll('option');
-    
+
     options.forEach(option => {
         if (option.value === '') {
             option.style.display = 'block';
@@ -1062,15 +1246,69 @@ function filterSelectOptions(field, searchTerm) {
         const matches = option.textContent.toLowerCase().includes(searchTerm.toLowerCase());
         option.style.display = matches ? 'block' : 'none';
     });
-    
+
     select.style.display = 'block';
+}
+
+function getGroupedMultiSelectContainer(field) {
+    return Array.from(document.querySelectorAll('.grouped-multi-select'))
+        .find(container => container.dataset.field === field) || null;
+}
+
+function toggleMultiSelectOption(field, value, isChecked) {
+    const normalizedValue = value;
+    const currentSelections = Array.isArray(currentFilters[field]) ? [...currentFilters[field]] : [];
+    const valueIndex = currentSelections.indexOf(normalizedValue);
+
+    if (isChecked) {
+        if (valueIndex === -1) {
+            currentSelections.push(normalizedValue);
+        }
+        currentFilters[field] = currentSelections;
+    } else {
+        if (valueIndex !== -1) {
+            currentSelections.splice(valueIndex, 1);
+        }
+
+        if (currentSelections.length > 0) {
+            currentFilters[field] = currentSelections;
+        } else {
+            delete currentFilters[field];
+        }
+    }
+
+    updateDependentFilters();
+    updateActiveFilterTags();
+    applyFiltersAndSearch();
+}
+
+function filterGroupedMultiSelectOptions(field, searchTerm) {
+    const container = getGroupedMultiSelectContainer(field);
+    if (!container) {
+        return;
+    }
+
+    const normalizedTerm = searchTerm.trim().toLowerCase();
+    const optionElements = container.querySelectorAll('.multi-select-option');
+
+    optionElements.forEach(optionElement => {
+        const labelText = optionElement.textContent.trim().toLowerCase();
+        const matches = !normalizedTerm || labelText.includes(normalizedTerm);
+        optionElement.style.display = matches ? '' : 'none';
+    });
+
+    container.querySelectorAll('.multi-select-group').forEach(groupElement => {
+        const hasVisibleOption = Array.from(groupElement.querySelectorAll('.multi-select-option'))
+            .some(optionElement => optionElement.style.display !== 'none');
+        groupElement.style.display = hasVisibleOption ? '' : 'none';
+    });
 }
 
 function setSalaryRange(field, min, max) {
     const fieldId = field.replace(/[()]/g, '').replace(/\s+/g, '_');
     const minInput = document.getElementById(`filter_${fieldId}_min`);
     const maxInput = document.getElementById(`filter_${fieldId}_max`);
-    
+
     minInput.value = min;
     maxInput.value = max;
     
@@ -1243,23 +1481,29 @@ function getFilterConfig(dataType) {
             {
                 field: '学部名',
                 label: '📚 学部・系統',
-                type: 'select_searchable',
+                type: 'grouped_multi_select',
                 priority: 1,
-                description: '学びたい学部・系統名で絞り込み'
+                description: '学びたい学部・系統名で絞り込み',
+                getOptions: () => getAcademicGroupedOptions('学部名'),
+                searchPlaceholder: '学部名を検索'
             },
             {
                 field: '学科名',
                 label: '🔬 学科・コース',
-                type: 'select_searchable',
+                type: 'grouped_multi_select',
                 priority: 1,
-                description: '気になる学科やコース名で検索'
+                description: '気になる学科やコース名で検索',
+                getOptions: () => getAcademicGroupedOptions('学科名'),
+                searchPlaceholder: '学科・コース名を検索'
             },
             {
                 field: '選考方法',
                 label: '📝 入試方法',
-                type: 'select',
+                type: 'grouped_multi_select',
                 priority: 1,
-                description: '一般・推薦・AOなど入試形式で絞り込み'
+                description: '一般・推薦・AOなど入試形式で絞り込み',
+                getOptions: () => getExamMethodGroupedOptions(),
+                searchPlaceholder: '入試方法を検索'
             },
             {
                 field: '偏差値',
@@ -1617,9 +1861,16 @@ function updateRangeFilter(field, type, value) {
 
 function updateActiveFilterTags() {
     let tagsHTML = '';
-    
+
     Object.entries(currentFilters).forEach(([field, value]) => {
-        if (typeof value === 'object') {
+        if (Array.isArray(value)) {
+            if (value.length === 0) {
+                return;
+            }
+            const label = filterLabelMap[field] || field;
+            const joined = value.join('、');
+            tagsHTML += `<span class="filter-tag" onclick="removeFilter('${field}')">${label}: ${joined} ×</span>`;
+        } else if (value && typeof value === 'object') {
             if (value.min !== undefined || value.max !== undefined) {
                 const range = `${value.min || ''}〜${value.max || ''}`;
                 const label = filterLabelMap[field] || field;
@@ -1657,7 +1908,13 @@ function applyFiltersAndSearch() {
     
     // フィルタ適用
     Object.entries(currentFilters).forEach(([field, value]) => {
-        if (typeof value === 'object') {
+        if (Array.isArray(value)) {
+            const selections = value.filter(item => item !== null && item !== undefined && item !== '');
+            if (selections.length === 0) {
+                return;
+            }
+            data = data.filter(row => selections.includes(row[field]));
+        } else if (value && typeof value === 'object') {
             // 範囲フィルタ
             data = data.filter(row => {
                 const rawValue = row[field];

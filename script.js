@@ -879,11 +879,11 @@ function setupFilters() {
     }
 
     if (!filterLabelMap['産業大分類']) {
-        filterLabelMap['産業大分類'] = '🌐 産業大分類';
+        filterLabelMap['産業大分類'] = '🌐 業界ジャンル';
     }
 
     if (!filterLabelMap['職種大分類']) {
-        filterLabelMap['職種大分類'] = '🧭 職種大分類';
+        filterLabelMap['職種大分類'] = '🧭 しごとのジャンル';
     }
 
     elements.filterContent.innerHTML = filterHTML;
@@ -931,10 +931,10 @@ function createFilterHTML(filter) {
             html += `
                 <div class="industry-classification-filter">
                     <div class="industry-major-select">
-                        <label for="filter_${majorFieldId}">大分類</label>
+                        <label for="filter_${majorFieldId}">ジャンル</label>
                         <select id="filter_${majorFieldId}"
                                 onchange="handleIndustryMajorFilterChange(this.value)">
-                            <option value="">大分類を選択</option>
+                            <option value="">ジャンルを選んでね</option>
                             ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
                         </select>
                     </div>
@@ -1018,10 +1018,10 @@ function createFilterHTML(filter) {
             html += `
                 <div class="job-classification-filter">
                     <div class="job-major-select">
-                        <label for="filter_${majorFieldId}">大分類</label>
+                        <label for="filter_${majorFieldId}">ジャンル</label>
                         <select id="filter_${majorFieldId}"
                                 onchange="handleJobMajorFilterChange(this.value)">
-                            <option value="">大分類を選択</option>
+                            <option value="">ジャンルを選んでね</option>
                             ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
                         </select>
                     </div>
@@ -1369,17 +1369,17 @@ function getFilterConfig(dataType) {
             },
             {
                 field: '職種大分類',
-                label: '🧭 職種大分類',
+                label: '🧭 しごとのジャンル',
                 type: 'job_classification',
                 priority: 1,
-                description: '職種の大区分で絞り込み'
+                description: '気になるお仕事ジャンルで絞り込み'
             },
             {
                 field: '産業分類コード',
-                label: '🏭 産業分類',
+                label: '🏭 業界ジャンル',
                 type: 'industry_classification',
                 priority: 1,
-                description: '産業の大分類で絞り込み'
+                description: '興味のある業界ジャンルで絞り込み'
             },
             {
                 field: '給与(円)',
@@ -1739,7 +1739,7 @@ function updateIndustryFilterOptions() {
     const majorSelection = currentFilters['産業大分類'] || '';
     const options = getAvailableIndustryMajorOptions();
 
-    majorSelect.innerHTML = '<option value="">大分類を選択</option>' +
+    majorSelect.innerHTML = '<option value="">ジャンルを選んでね</option>' +
         options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
 
     if (majorSelection && options.includes(majorSelection)) {
@@ -1769,7 +1769,7 @@ function updateJobClassificationFilterOptions() {
     const majorSelection = currentFilters['職種大分類'] || '';
     const options = getAvailableJobMajorOptions();
 
-    majorSelect.innerHTML = '<option value="">大分類を選択</option>' +
+    majorSelect.innerHTML = '<option value="">ジャンルを選んでね</option>' +
         options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
 
     let changed = false;
@@ -2426,8 +2426,8 @@ function getDetailDisplayData(item, dataType) {
                         { label: '仕事内容', value: item['仕事内容詳細'] || item['仕事内容サマリー'] || '-', multiline: true },
                         { label: '職種分類', value: item['職種分類'] || '-' },
                         { label: '職業分類コード', value: item['職業分類コード'] || '-' },
-                        { label: '職種大分類', value: item['職種大分類'] || '-' },
-                        { label: '産業大分類', value: item['産業大分類'] || '-' },
+                        { label: 'しごとのジャンル', value: item['職種大分類'] || '-' },
+                        { label: '業界ジャンル', value: item['産業大分類'] || '-' },
                         { label: '産業分類コード', value: item['産業分類コード'] || '-' },
                         { label: '就業場所', value: item['就業場所'] || item['所在地'] || '-' }
                     ]

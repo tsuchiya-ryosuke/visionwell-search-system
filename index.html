@@ -32,12 +32,16 @@
             <div class="container">
                 <!-- フィルタパネル -->
                 <aside class="filter-panel">
-                    <h3>フィルタ</h3>
-                    <div id="filterContent"></div>
+                    <div class="filter-panel-header">
+                        <h3>条件でさがす</h3>
+                    </div>
+                    <div id="filterContent" class="filter-content"></div>
                     <div class="active-filters">
-                        <h4>適用中のフィルタ</h4>
+                        <div class="active-filters-header">
+                            <h4>適用中のフィルタ</h4>
+                            <button type="button" class="btn btn-ghost btn-small" onclick="clearAllFilters()">条件クリア</button>
+                        </div>
                         <div id="activeFilterTags"></div>
-                        <button class="btn btn-secondary btn-small" onclick="clearAllFilters()">すべてクリア</button>
                     </div>
                 </aside>
 

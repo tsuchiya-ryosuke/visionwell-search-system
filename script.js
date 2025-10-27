@@ -803,80 +803,27 @@ function isFilterActive(field) {
     return value !== '' && value !== null && value !== undefined;
 }
 
-function updateFilterGroupToggleIcon(group) {
-    const toggleButton = group.querySelector('.filter-group-title[data-toggle-group]');
-    if (!toggleButton) {
-        return;
-    }
-
-    const icon = toggleButton.querySelector('.toggle-icon');
-    if (!icon) {
-        return;
-    }
-
-    icon.textContent = group.classList.contains('collapsed') ? '＋' : '−';
-    toggleButton.setAttribute('aria-expanded', group.classList.contains('collapsed') ? 'false' : 'true');
-}
-
-function expandActiveFilterGroups() {
-    document.querySelectorAll('.filter-priority-group.collapsed').forEach(group => {
-        const fields = Array.from(group.querySelectorAll('.filter-group'))
-            .map(element => element.dataset.field)
-            .filter(Boolean);
-
-        const hasActiveFilter = fields.some(field => isFilterActive(field));
-        if (hasActiveFilter) {
-            group.classList.remove('collapsed');
-        }
-
-        updateFilterGroupToggleIcon(group);
-    });
-}
-
-function initializeFilterGroupToggleIcons() {
-    document.querySelectorAll('.filter-priority-group').forEach(group => {
-        updateFilterGroupToggleIcon(group);
-    });
-}
-
 function setupFilters() {
     const filterConfig = getFilterConfig(currentDataType);
 
     // 優先度でソート
     const sortedFilters = filterConfig.sort((a, b) => a.priority - b.priority);
 
-    let filterHTML = '';
-    let currentPriority = null;
     filterLabelMap = {};
+    const basicFilters = [];
+    const detailFilters = [];
 
     sortedFilters.forEach(filter => {
         filterLabelMap[filter.field] = filter.label;
-        // 優先度グループの区切り
-        if (filter.priority !== currentPriority) {
-            if (currentPriority !== null) {
-                filterHTML += '</div></div>'; // 前のグループを閉じる
-            }
-            const groupTitle = getFilterGroupTitle(currentDataType, filter.priority);
-            const isDetailGroup = filter.priority === 2;
-            const collapsedClass = isDetailGroup ? ' collapsed' : '';
-            filterHTML += `<div class="filter-priority-group priority-${filter.priority}${collapsedClass}" data-priority="${filter.priority}">`;
-            if (groupTitle) {
-                if (isDetailGroup) {
-                    filterHTML += `<button type="button" class="filter-group-title" data-toggle-group aria-expanded="false">${groupTitle}<span class="toggle-icon">＋</span></button>`;
-                } else {
-                    filterHTML += `<div class="filter-group-title">${groupTitle}</div>`;
-                }
-            }
-            filterHTML += '<div class="filter-group-content">';
-            currentPriority = filter.priority;
+        const isBasic = filter.priority === 1;
+        const filterMarkup = createFilterHTML(filter, { isCompact: isBasic });
+
+        if (isBasic) {
+            basicFilters.push(filterMarkup);
+        } else {
+            detailFilters.push({ filter, html: filterMarkup });
         }
-
-        filterHTML += createFilterHTML(filter);
     });
-
-    if (currentPriority !== null) {
-        filterHTML += '</div></div>'; // 最後のグループを閉じる
-    }
 
     if (!filterLabelMap['産業大分類']) {
         filterLabelMap['産業大分類'] = '🌐 業界ジャンル';
@@ -886,12 +833,36 @@ function setupFilters() {
         filterLabelMap['職種大分類'] = '🧭 しごとのジャンル';
     }
 
+    const activeDetailCount = detailFilters.filter(({ filter }) => isFilterActive(filter.field)).length;
+    const detailSection = detailFilters.length
+        ? `
+            <details class="filter-details"${activeDetailCount ? ' open' : ''}>
+                <summary>
+                    <span>詳細条件を設定</span>
+                    ${activeDetailCount ? `<span class="detail-counter">${activeDetailCount}件選択中</span>` : ''}
+                </summary>
+                <div class="filter-details-grid">
+                    ${detailFilters.map(item => item.html).join('')}
+                </div>
+            </details>
+        `
+        : '';
+
+    const filterHTML = `
+        <form id="filterForm" class="filter-form" onsubmit="handleFilterSubmit(event)">
+            <div class="filter-basic-grid">
+                ${basicFilters.join('')}
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">検索</button>
+                </div>
+            </div>
+            ${detailSection}
+        </form>
+    `;
+
     elements.filterContent.innerHTML = filterHTML;
 
     restoreFilterSelections();
-    expandActiveFilterGroups();
-    initializeFilterGroupToggleIcons();
-    // イベントリスナーを設定
     setupFilterEventListeners();
     const dependenciesChanged = updateDependentFilters();
     if (dependenciesChanged) {
@@ -899,46 +870,49 @@ function setupFilters() {
     }
 }
 
-function getFilterGroupTitle(dataType, priority) {
-    if (dataType === 'school') {
-        if (priority === 1) return '🎯 通常検索';
-        if (priority === 2) return '💡 詳細条件';
-        if (priority === 3) return '📎 サポート情報';
-    } else {
-        if (priority === 1) return '🎯 基本条件';
-        if (priority === 2) return '💡 詳細条件';
-        if (priority === 3) return '📎 その他の条件';
+function getCompactLabel(label) {
+    if (!label) {
+        return '';
     }
-    return '';
+    return label.replace(/^[^\u3040-\u30FF\u4E00-\u9FFF0-9A-Za-z]+/, '').trim();
 }
 
-function createFilterHTML(filter) {
+function createFilterHTML(filter, options = {}) {
+    const { isCompact = false } = options;
     const fieldId = filter.field.replace(/[()]/g, '').replace(/\s+/g, '_');
-    
-    let html = `
-        <div class="filter-group" data-field="${filter.field}">
-            <div class="filter-header">
-                <h4>${filter.label}</h4>
-                <span class="filter-description">${filter.description}</span>
-            </div>
-    `;
-    
+    const wrapperClasses = ['filter-field'];
+    if (isCompact) {
+        wrapperClasses.push('filter-field--compact');
+    }
+    if (['grouped_multi_select', 'salary_range', 'company_size', 'select_searchable'].includes(filter.type)) {
+        wrapperClasses.push('filter-field--full');
+    }
+
+    const labelText = filter.compactLabel || getCompactLabel(filter.label);
+    const placeholder = filter.placeholder || `${labelText || '条件'}を選択`;
+    const showLabel = !isCompact || ['salary_range', 'company_size', 'grouped_multi_select', 'select_searchable'].includes(filter.type);
+    const showDescription = !isCompact && filter.description;
+    const labelMarkup = showLabel ? `<label class="field-label" for="filter_${fieldId}">${labelText}</label>` : '';
+    const staticLabelMarkup = showLabel ? `<div class="field-label">${labelText}</div>` : '';
+    const descriptionMarkup = showDescription ? `<p class="field-description">${filter.description}</p>` : '';
+    const ariaLabelAttr = showLabel ? '' : ` aria-label="${labelText}"`;
+
+    let html = `<div class="${wrapperClasses.join(' ')}" data-field="${filter.field}">`;
+
     switch (filter.type) {
         case 'industry_classification': {
             const majorOptions = getAvailableIndustryMajorOptions();
             const selectedMajor = currentFilters['産業大分類'] || '';
             const majorFieldId = '産業大分類'.replace(/[()]/g, '').replace(/\s+/g, '_');
+            const industryLabel = showLabel ? `<label class="field-label" for="filter_${majorFieldId}">${labelText}</label>` : '';
             html += `
-                <div class="industry-classification-filter">
-                    <div class="industry-major-select">
-                        <label for="filter_${majorFieldId}">ジャンル</label>
-                        <select id="filter_${majorFieldId}"
-                                onchange="handleIndustryMajorFilterChange(this.value)">
-                            <option value="">ジャンルを選んでね</option>
-                            ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
+                ${industryLabel}
+                <select id="filter_${majorFieldId}"${ariaLabelAttr}
+                        onchange="handleIndustryMajorFilterChange(this.value)">
+                    <option value="">${placeholder}</option>
+                    ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
+                </select>
+                ${descriptionMarkup}
             `;
             break;
         }
@@ -970,6 +944,11 @@ function createFilterHTML(filter) {
                 : sanitizedSelections;
 
             const searchPlaceholder = filter.searchPlaceholder || 'キーワードで検索';
+
+            html += `
+                ${staticLabelMarkup}
+                ${descriptionMarkup}
+            `;
 
             if (groups.length === 0) {
                 html += `
@@ -1015,42 +994,45 @@ function createFilterHTML(filter) {
             const majorOptions = getAvailableJobMajorOptions();
             const selectedMajor = currentFilters['職種大分類'] || '';
             const majorFieldId = '職種大分類'.replace(/[()]/g, '').replace(/\s+/g, '_');
+            const jobLabel = showLabel ? `<label class="field-label" for="filter_${majorFieldId}">${labelText}</label>` : '';
             html += `
-                <div class="job-classification-filter">
-                    <div class="job-major-select">
-                        <label for="filter_${majorFieldId}">ジャンル</label>
-                        <select id="filter_${majorFieldId}"
-                                onchange="handleJobMajorFilterChange(this.value)">
-                            <option value="">ジャンルを選んでね</option>
-                            ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
+                ${jobLabel}
+                <select id="filter_${majorFieldId}"${ariaLabelAttr}
+                        onchange="handleJobMajorFilterChange(this.value)">
+                    <option value="">${placeholder}</option>
+                    ${majorOptions.map(opt => `<option value="${opt}"${opt === selectedMajor ? ' selected' : ''}>${opt}</option>`).join('')}
+                </select>
+                ${descriptionMarkup}
             `;
             break;
         }
 
-        case 'select':
+        case 'select': {
             const options = filter.options || getUniqueValues(filter.field);
             html += `
-                <select id="filter_${fieldId}" onchange="updateFilter('${filter.field}', this.value)">
-                    <option value="">選択してください</option>
+                ${labelMarkup}
+                <select id="filter_${fieldId}"${ariaLabelAttr} onchange="updateFilter('${filter.field}', this.value)">
+                    <option value="">${placeholder}</option>
                     ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
                 </select>
+                ${descriptionMarkup}
             `;
             break;
+        }
 
-        case 'prefecture_city':
+        case 'prefecture_city': {
             const prefectureField = filter.dependsOn || '都道府県';
             const selectedPrefecture = currentFilters[prefectureField] || '';
             const selectedCity = currentFilters[filter.field] || '';
             const cityOptions = selectedPrefecture
                 ? getCityOptions(filter.field, prefectureField, selectedPrefecture)
                 : [];
-            const cityPlaceholder = selectedPrefecture ? '市区町村を選択してください' : '先に都道府県を選択';
+            const defaultPlaceholder = filter.placeholder || '市区町村を選択してください';
+            const cityPlaceholder = selectedPrefecture ? defaultPlaceholder : '先に都道府県を選択';
             const cityDisabled = selectedPrefecture ? '' : 'disabled';
             html += `
-                <select id="filter_${fieldId}"
+                ${labelMarkup}
+                <select id="filter_${fieldId}"${ariaLabelAttr}
                         data-filter-type="prefecture_city"
                         data-city-field="${filter.field}"
                         data-prefecture-field="${prefectureField}"
@@ -1059,31 +1041,38 @@ function createFilterHTML(filter) {
                     <option value="">${cityPlaceholder}</option>
                     ${cityOptions.map(opt => `<option value="${opt}"${opt === selectedCity ? ' selected' : ''}>${opt}</option>`).join('')}
                 </select>
+                ${descriptionMarkup}
             `;
             break;
+        }
 
-        case 'select_searchable':
+        case 'select_searchable': {
             const searchableOptions = filter.options || getUniqueValues(filter.field);
+            const searchLabel = showLabel ? `<label class="field-label" for="filter_search_${fieldId}">${labelText}</label>` : '';
             html += `
+                ${searchLabel}
+                ${descriptionMarkup}
                 <div class="searchable-select">
                     <input type="text" id="filter_search_${fieldId}" placeholder="検索して選択..."
                            oninput="filterSelectOptions('${filter.field}', this.value)">
                     <select id="filter_${fieldId}" onchange="updateFilter('${filter.field}', this.value)" size="5" style="display:none;">
-                        <option value="">選択してください</option>
+                        <option value="">${placeholder}</option>
                         ${searchableOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
                     </select>
                 </div>
             `;
             break;
-            
-        case 'range':
+        }
+
+        case 'range': {
             const min = filter.min || 0;
             const max = filter.max || 100;
             const step = filter.step || 1;
             html += `
+                ${staticLabelMarkup}
                 <div class="range-filter">
                     <div class="range-inputs">
-                        <input type="number" id="filter_${fieldId}_min" placeholder="最小" 
+                        <input type="number" id="filter_${fieldId}_min" placeholder="最小"
                                min="${min}" max="${max}" step="${step}"
                                onchange="updateRangeFilter('${filter.field}', 'min', this.value)">
                         <span>〜</span>
@@ -1092,11 +1081,14 @@ function createFilterHTML(filter) {
                                onchange="updateRangeFilter('${filter.field}', 'max', this.value)">
                     </div>
                 </div>
+                ${descriptionMarkup}
             `;
             break;
-            
-        case 'salary_range':
+        }
+
+        case 'salary_range': {
             html += `
+                ${staticLabelMarkup}
                 <div class="salary-range-filter">
                     <div class="salary-buttons">
                         <button type="button" class="salary-btn" onclick="setSalaryRange('${filter.field}', 0, 150000)">15万以下</button>
@@ -1115,11 +1107,14 @@ function createFilterHTML(filter) {
                         <span>円</span>
                     </div>
                 </div>
+                ${descriptionMarkup}
             `;
             break;
-            
-        case 'company_size':
+        }
+
+        case 'company_size': {
             html += `
+                ${staticLabelMarkup}
                 <div class="company-size-filter">
                     <div class="size-buttons">
                         <button type="button" class="size-btn" onclick="setCompanySize('${filter.field}', 1, 50)">小企業<br>(〜50人)</button>
@@ -1127,36 +1122,24 @@ function createFilterHTML(filter) {
                         <button type="button" class="size-btn" onclick="setCompanySize('${filter.field}', 301, 999999)">大企業<br>(301人〜)</button>
                     </div>
                 </div>
+                ${descriptionMarkup}
             `;
             break;
+        }
     }
-    
+
     html += '</div>';
     return html;
 }
-
+    
 function setupFilterEventListeners() {
-    document.querySelectorAll('.filter-group-title[data-toggle-group]').forEach(button => {
-        button.addEventListener('click', function() {
-            const group = this.closest('.filter-priority-group');
-            if (!group) {
-                return;
-            }
-
-            group.classList.toggle('collapsed');
-            updateFilterGroupToggleIcon(group);
-        });
-    });
-
-    // 検索可能セレクトのイベントリスナー
     document.querySelectorAll('.searchable-select input').forEach(input => {
         input.addEventListener('focus', function() {
             const select = this.nextElementSibling;
             select.style.display = 'block';
         });
-        
+
         input.addEventListener('blur', function() {
-            // 少し遅延してからhideする（選択できるように）
             setTimeout(() => {
                 const select = this.nextElementSibling;
                 select.style.display = 'none';
@@ -1357,7 +1340,8 @@ function getFilterConfig(dataType) {
                 label: '🗾 勤務地(都道府県)',
                 type: 'select',
                 priority: 1,
-                description: '働きたい都道府県を選択'
+                description: '働きたい都道府県を選択',
+                placeholder: '勤務地を選択'
             },
             {
                 field: '勤務地(市区町村)',
@@ -1365,21 +1349,24 @@ function getFilterConfig(dataType) {
                 type: 'prefecture_city',
                 priority: 1,
                 description: '選択した都道府県内の市区町村を選択',
-                dependsOn: '都道府県'
+                dependsOn: '都道府県',
+                placeholder: '市区町村を選択'
             },
             {
                 field: '職種大分類',
                 label: '🧭 しごとのジャンル',
                 type: 'job_classification',
                 priority: 1,
-                description: '気になるお仕事ジャンルで絞り込み'
+                description: '気になるお仕事ジャンルで絞り込み',
+                placeholder: '職種を選択'
             },
             {
                 field: '産業分類コード',
                 label: '🏭 業界ジャンル',
                 type: 'industry_classification',
                 priority: 1,
-                description: '興味のある業界ジャンルで絞り込み'
+                description: '興味のある業界ジャンルで絞り込み',
+                placeholder: '業界を選択'
             },
             {
                 field: '給与(円)',
@@ -1461,7 +1448,8 @@ function getFilterConfig(dataType) {
                 label: '🗾 都道府県',
                 type: 'select',
                 priority: 1,
-                description: '通学したい地域を選んでください'
+                description: '通学したい地域を選んでください',
+                placeholder: '都道府県を選択'
             },
             {
                 field: '所在地(市区町村)',
@@ -1469,14 +1457,16 @@ function getFilterConfig(dataType) {
                 type: 'prefecture_city',
                 priority: 1,
                 description: '選択した都道府県内の市区町村を選んでください',
-                dependsOn: '都道府県'
+                dependsOn: '都道府県',
+                placeholder: '市区町村を選択'
             },
             {
                 field: '校種',
                 label: '🎓 学校種別',
                 type: 'select',
                 priority: 1,
-                description: '大学・短大・専門学校などを選べます'
+                description: '大学・短大・専門学校などを選べます',
+                placeholder: '学校種別を選択'
             },
             {
                 field: '学部名',
@@ -1739,7 +1729,7 @@ function updateIndustryFilterOptions() {
     const majorSelection = currentFilters['産業大分類'] || '';
     const options = getAvailableIndustryMajorOptions();
 
-    majorSelect.innerHTML = '<option value="">ジャンルを選んでね</option>' +
+    majorSelect.innerHTML = '<option value="">業界を選択</option>' +
         options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
 
     if (majorSelection && options.includes(majorSelection)) {
@@ -1769,7 +1759,7 @@ function updateJobClassificationFilterOptions() {
     const majorSelection = currentFilters['職種大分類'] || '';
     const options = getAvailableJobMajorOptions();
 
-    majorSelect.innerHTML = '<option value="">ジャンルを選んでね</option>' +
+    majorSelect.innerHTML = '<option value="">職種を選択</option>' +
         options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
 
     let changed = false;
@@ -1897,6 +1887,11 @@ function clearAllFilters() {
     updateActiveFilterTags();
     setupFilters();
     applyFiltersAndSearch();
+}
+
+function handleFilterSubmit(event) {
+    event.preventDefault();
+    performSearch();
 }
 
 function performSearch() {

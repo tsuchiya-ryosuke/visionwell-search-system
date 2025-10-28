@@ -407,6 +407,67 @@ function normalizeNumber(value) {
     return isNaN(num) ? null : num;
 }
 
+function sanitizePositiveNumber(value) {
+    const num = normalizeNumber(value);
+    if (num === null || isNaN(num) || num <= 0) {
+        return null;
+    }
+    return num;
+}
+
+function formatNumberWithPrecision(num, decimals = 2) {
+    const fixed = num.toFixed(decimals);
+    if (!fixed.includes('.')) {
+        return fixed;
+    }
+    return fixed.replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatBonusMonthsValue(num) {
+    if (num === null) {
+        return null;
+    }
+    const decimals = num >= 10 ? 1 : 2;
+    return `${formatNumberWithPrecision(num, decimals)}か月分`;
+}
+
+function formatBonusAmountValue(num) {
+    if (num === null) {
+        return null;
+    }
+    const decimals = num >= 100 ? 0 : num >= 10 ? 1 : 2;
+    return `${formatNumberWithPrecision(num, decimals)}万円`;
+}
+
+function getBonusValues(item) {
+    return {
+        monthsValue: sanitizePositiveNumber(item['賞与(基本給、円)']),
+        amountValue: sanitizePositiveNumber(item['賞与(平均、万円)'])
+    };
+}
+
+function getBonusDetail(item) {
+    const { monthsValue, amountValue } = getBonusValues(item);
+    const monthsText = formatBonusMonthsValue(monthsValue);
+    const amountText = formatBonusAmountValue(amountValue);
+
+    const parts = [];
+    if (monthsText) {
+        parts.push(`基本給換算 ${monthsText}`);
+    }
+    if (amountText) {
+        parts.push(`平均 ${amountText}`);
+    }
+
+    return {
+        monthsValue,
+        amountValue,
+        monthsText,
+        amountText,
+        displayText: parts.length ? parts.join(' / ') : null
+    };
+}
+
 function formatCurrency(value, unit = '円') {
     const num = normalizeNumber(value);
     if (num === null) {
@@ -586,12 +647,11 @@ function deriveHolidayPolicy(item, remarks) {
 }
 
 function deriveBonusAvailability(item, remarks) {
-    const bonusBasic = normalizeNumber(item['賞与(基本給、円)']);
-    const bonusAverage = normalizeNumber(item['賞与(平均、万円)']);
+    const { monthsValue, amountValue } = getBonusValues(item);
     const text = remarks || '';
     const hasRaise = /昇給/.test(text);
 
-    if ((bonusBasic && bonusBasic > 0) || (bonusAverage && bonusAverage > 0)) {
+    if (monthsValue !== null || amountValue !== null) {
         return hasRaise ? '昇給・賞与あり' : '賞与あり';
     }
 
@@ -2624,7 +2684,19 @@ function getDetailDisplayData(item, dataType) {
         const employmentType = item['雇用形態'] && item['雇用形態'] !== '情報なし' ? item['雇用形態'] : '';
         const holidays = item['休日日数'] ? `${item['休日日数']}日` : (item['休日制度'] && item['休日制度'] !== '情報なし' ? item['休日制度'] : '');
         const bonus = item['昇給・賞与'] && item['昇給・賞与'] !== '情報なし' ? item['昇給・賞与'] : '';
+        const bonusDetails = getBonusDetail(item);
         const access = item['交通アクセス'] || item['最寄駅'] || '';
+
+        const bonusDetailFields = [];
+        if (bonusDetails.monthsText) {
+            bonusDetailFields.push({ label: '賞与（月数換算）', value: bonusDetails.monthsText });
+        }
+        if (bonusDetails.amountText) {
+            bonusDetailFields.push({ label: '賞与（平均額）', value: bonusDetails.amountText });
+        }
+        if (bonusDetailFields.length === 0) {
+            bonusDetailFields.push({ label: '賞与', value: '-' });
+        }
 
         if (salary && salary !== '-') keyInfo.push({ icon: '💰', label: '基本給', value: salary });
         if (location) keyInfo.push({ icon: '📍', label: '勤務地', value: location });
@@ -2675,8 +2747,7 @@ function getDetailDisplayData(item, dataType) {
                         { label: '年間休日', value: item['休日日数'] ? `${item['休日日数']}日` : '-' },
                         { label: '基本給', value: salary, highlight: true, important: true },
                         { label: '昇給・賞与', value: bonus || '-' },
-                        { label: '賞与（基本給換算）', value: item['賞与(基本給、円)'] ? `${item['賞与(基本給、円)']}円` : '-' },
-                        { label: '賞与（平均）', value: item['賞与(平均、万円)'] ? `${item['賞与(平均、万円)']}万円` : '-' }
+                        ...bonusDetailFields
                     ]
                 },
                 {

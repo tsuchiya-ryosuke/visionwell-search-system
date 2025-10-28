@@ -321,6 +321,52 @@ const PREFECTURE_ORDER = [
     '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県'
 ];
 
+function normalizePrefectureName(name) {
+    if (!name) {
+        return '';
+    }
+
+    const trimmed = name.toString().trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    if (trimmed === '北海道') {
+        return '北海道';
+    }
+
+    return trimmed.replace(/(都|道|府|県)$/u, '');
+}
+
+function formatPrefectureDisplayName(name) {
+    const normalized = normalizePrefectureName(name);
+    if (!normalized) {
+        return '';
+    }
+
+    if (normalized === '北海道') {
+        return '北海道';
+    }
+
+    if (normalized === '東京') {
+        return '東京都';
+    }
+
+    if (normalized === '京都') {
+        return '京都府';
+    }
+
+    if (normalized === '大阪') {
+        return '大阪府';
+    }
+
+    if (/(都|道|府|県)$/u.test(normalized)) {
+        return normalized;
+    }
+
+    return `${normalized}県`;
+}
+
 const AUTH_PASSWORD = 'visionwell1001';
 let isAuthenticated = false;
 
@@ -763,6 +809,13 @@ function restoreFilterSelections() {
                 updateGroupedMultiSelectHeaderState(field);
             }
         } else if (value && typeof value === 'object') {
+            if (value.type === 'text') {
+                const input = document.getElementById(`filter_${fieldId}`);
+                if (input) {
+                    input.value = value.raw;
+                }
+                return;
+            }
             const minInput = document.getElementById(`filter_${fieldId}_min`);
             const maxInput = document.getElementById(`filter_${fieldId}_max`);
 
@@ -773,9 +826,9 @@ function restoreFilterSelections() {
                 maxInput.value = value.max;
             }
         } else {
-            const select = document.getElementById(`filter_${fieldId}`);
-            if (select) {
-                select.value = value;
+            const element = document.getElementById(`filter_${fieldId}`);
+            if (element) {
+                element.value = value;
             }
 
             const searchInput = document.getElementById(`filter_search_${fieldId}`);
@@ -891,7 +944,7 @@ function createFilterHTML(filter, options = {}) {
 
     const labelText = filter.compactLabel || getCompactLabel(filter.label);
     const placeholder = filter.placeholder || `${labelText || '条件'}を選択`;
-    const showLabel = !isCompact || ['salary_range', 'company_size', 'grouped_multi_select', 'select_searchable'].includes(filter.type);
+    const showLabel = !isCompact || ['salary_range', 'company_size', 'grouped_multi_select', 'select_searchable', 'text'].includes(filter.type);
     const showDescription = !isCompact && filter.description;
     const labelMarkup = showLabel ? `<label class="field-label" for="filter_${fieldId}">${labelText}</label>` : '';
     const staticLabelMarkup = showLabel ? `<div class="field-label">${labelText}</div>` : '';
@@ -1010,6 +1063,22 @@ function createFilterHTML(filter, options = {}) {
                         }).join('')}
                     </div>
                 </div>
+            `;
+            break;
+        }
+
+        case 'text': {
+            const currentValue = currentFilters[filter.field] && typeof currentFilters[filter.field] === 'object'
+                && currentFilters[filter.field].type === 'text'
+                ? currentFilters[filter.field].raw
+                : (currentFilters[filter.field] || '');
+            html += `
+                ${labelMarkup}
+                <input type="text" id="filter_${fieldId}"${ariaLabelAttr}
+                       placeholder="${escapeHtml(placeholder)}"
+                       value="${escapeHtml(currentValue)}"
+                       oninput="updateTextFilter('${filter.field}', this.value)">
+                ${descriptionMarkup}
             `;
             break;
         }
@@ -1234,6 +1303,10 @@ function enhanceJobRecord(item) {
 
 function enhanceSchoolRecord(item) {
     const record = { ...item };
+    const normalizedPrefecture = normalizePrefectureName(record['都道府県']);
+    if (normalizedPrefecture) {
+        record['都道府県'] = formatPrefectureDisplayName(normalizedPrefecture);
+    }
     const baseAddress = record['要録用所在地'] || record['所在地'] || '';
     record['所在地(市区町村)'] = extractCityFromAddress(baseAddress);
     return record;
@@ -1421,16 +1494,17 @@ function setCompanySize(field, min, max) {
 function getCityOptions(cityField, prefectureField, selectedPrefecture) {
     const source = originalData.length ? originalData : currentData;
     const citySet = new Set();
+    const normalizedSelectedPrefecture = normalizePrefectureName(selectedPrefecture);
 
     source.forEach(row => {
-        const prefecture = row[prefectureField] || '';
+        const prefecture = normalizePrefectureName(row[prefectureField] || '');
         const city = row[cityField] || '';
 
         if (!city) {
             return;
         }
 
-        if (!selectedPrefecture || prefecture === selectedPrefecture) {
+        if (!normalizedSelectedPrefecture || prefecture === normalizedSelectedPrefecture) {
             citySet.add(city);
         }
     });
@@ -1549,6 +1623,14 @@ function getFilterConfig(dataType) {
         ];
     } else {
         return [
+            {
+                field: '学校名',
+                label: '🏫 学校名',
+                type: 'text',
+                priority: 1,
+                description: '学校名を直接入力して検索できます',
+                placeholder: '学校名を入力'
+            },
             {
                 field: '都道府県',
                 label: '🗾 都道府県',
@@ -1677,11 +1759,31 @@ function getUniqueValues(field) {
     });
 
     if (field === '都道府県') {
-        const prefectureValues = PREFECTURE_ORDER.filter(pref => uniqueValues.includes(pref));
-        const otherValues = uniqueValues
-            .filter(value => !PREFECTURE_ORDER.includes(value))
+        const normalizedMap = new Map();
+
+        uniqueValues.forEach(value => {
+            const normalized = normalizePrefectureName(value);
+            if (!normalized) {
+                return;
+            }
+            if (!normalizedMap.has(normalized)) {
+                normalizedMap.set(normalized, formatPrefectureDisplayName(normalized));
+            }
+        });
+
+        const ordered = [];
+        PREFECTURE_ORDER.forEach(pref => {
+            const normalized = normalizePrefectureName(pref);
+            if (normalizedMap.has(normalized)) {
+                ordered.push(formatPrefectureDisplayName(normalized));
+                normalizedMap.delete(normalized);
+            }
+        });
+
+        const remaining = Array.from(normalizedMap.values())
             .sort((a, b) => a.localeCompare(b, 'ja'));
-        return [...prefectureValues, ...otherValues];
+
+        return [...ordered, ...remaining];
     }
 
     if (field === '産業分類コード') {
@@ -1930,6 +2032,23 @@ function updateFilter(field, value) {
     applyFiltersAndSearch();
 }
 
+function updateTextFilter(field, rawValue) {
+    const trimmed = rawValue.trim();
+
+    if (trimmed) {
+        currentFilters[field] = {
+            type: 'text',
+            value: trimmed,
+            raw: rawValue
+        };
+    } else {
+        delete currentFilters[field];
+    }
+
+    updateActiveFilterTags();
+    applyFiltersAndSearch();
+}
+
 function updateRangeFilter(field, type, value) {
     if (!currentFilters[field]) {
         currentFilters[field] = {};
@@ -1960,7 +2079,13 @@ function updateActiveFilterTags() {
             const joined = value.join('、');
             tagsHTML += `<span class="filter-tag" onclick="removeFilter('${field}')">${label}: ${joined} ×</span>`;
         } else if (value && typeof value === 'object') {
-            if (value.min !== undefined || value.max !== undefined) {
+            if (value.type === 'text') {
+                const label = filterLabelMap[field] || field;
+                const textValue = value.value || '';
+                if (textValue) {
+                    tagsHTML += `<span class="filter-tag" onclick="removeFilter('${field}')">${label}: ${textValue} ×</span>`;
+                }
+            } else if (value.min !== undefined || value.max !== undefined) {
                 const range = `${value.min || ''}〜${value.max || ''}`;
                 const label = filterLabelMap[field] || field;
                 tagsHTML += `<span class="filter-tag" onclick="removeFilter('${field}')">${label}: ${range} ×</span>`;
@@ -1999,10 +2124,19 @@ function performSearch() {
 
 function applyFiltersAndSearch() {
     let data = [...originalData];
-    
+
     // フィルタ適用
     Object.entries(currentFilters).forEach(([field, value]) => {
-        if (Array.isArray(value)) {
+        if (value && typeof value === 'object' && value.type === 'text') {
+            const textValue = value.value.trim().toLowerCase();
+            if (!textValue) {
+                return;
+            }
+            data = data.filter(row => {
+                const target = (row[field] || '').toString().toLowerCase();
+                return target.includes(textValue);
+            });
+        } else if (Array.isArray(value)) {
             const selections = value.filter(item => item !== null && item !== undefined && item !== '');
             if (selections.length === 0) {
                 return;
@@ -2021,7 +2155,12 @@ function applyFiltersAndSearch() {
             });
         } else {
             // 選択フィルタ
-            data = data.filter(row => row[field] === value);
+            if (field === '都道府県') {
+                const normalizedTarget = normalizePrefectureName(value);
+                data = data.filter(row => normalizePrefectureName(row[field]) === normalizedTarget);
+            } else {
+                data = data.filter(row => row[field] === value);
+            }
         }
     });
     

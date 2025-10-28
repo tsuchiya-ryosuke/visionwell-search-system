@@ -398,9 +398,9 @@ header h1 {
 
 .grouped-multi-select--group-only .multi-select-groups {
     max-height: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
     align-items: flex-start;
 }
 
@@ -448,7 +448,7 @@ header h1 {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     background-color: var(--bg-color);
-    flex: 0 1 160px;
+    width: 100%;
 }
 
 .grouped-multi-select--group-only .multi-select-group-header {

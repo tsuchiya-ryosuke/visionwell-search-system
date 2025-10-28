@@ -395,11 +395,12 @@ header h1 {
     margin-bottom: 0;
 }
 
+
 .grouped-multi-select--group-only .multi-select-groups {
     max-height: none;
-    gap: 12px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
     align-items: flex-start;
 }
 
@@ -443,14 +444,17 @@ header h1 {
 }
 
 .grouped-multi-select--group-only .multi-select-group {
-    padding: 10px;
+    padding: 8px 12px;
     border: 1px solid var(--border-color);
     border-radius: 6px;
     background-color: var(--bg-color);
+    flex: 0 1 160px;
 }
 
 .grouped-multi-select--group-only .multi-select-group-header {
     margin-bottom: 0;
+    width: 100%;
+    gap: 8px;
 }
 
 .grouped-multi-select .multi-select-option {
@@ -1232,6 +1236,14 @@ header h1 {
 
     .grouped-multi-select .multi-select-options {
         grid-template-columns: 1fr;
+    }
+
+    .grouped-multi-select--group-only .multi-select-groups {
+        flex-direction: column;
+    }
+
+    .grouped-multi-select--group-only .multi-select-group {
+        flex: 1 1 auto;
     }
 
     .search-sort-bar {

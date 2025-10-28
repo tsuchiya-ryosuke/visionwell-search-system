@@ -1686,10 +1686,11 @@ function getCityOptions(cityField, prefectureField, selectedPrefecture) {
         ? (PREFECTURE_CITY_FALLBACK[normalizedSelectedPrefecture] || [])
         : [];
 
-    const combined = new Set(fallbackCities);
-    citySet.forEach(city => combined.add(city));
+    if (citySet.size === 0 && fallbackCities.length > 0) {
+        return [...new Set(fallbackCities)].sort((a, b) => a.localeCompare(b, 'ja'));
+    }
 
-    return Array.from(combined).sort((a, b) => a.localeCompare(b, 'ja'));
+    return Array.from(citySet).sort((a, b) => a.localeCompare(b, 'ja'));
 }
 
 function getFilterConfig(dataType) {

@@ -606,7 +606,7 @@ function formatPercentage(value) {
     return `${num}%`;
 }
 
-function formatDeviation(value) {
+function formatAverageRating(value) {
     const num = normalizeNumber(value);
     if (num === null) {
         return '-';
@@ -1859,12 +1859,13 @@ function getFilterConfig(dataType) {
             },
             {
                 field: '偏差値',
-                label: '📈 偏差値目安',
+                label: '📈 平均評定（1〜5）',
                 type: 'range',
                 priority: 2,
-                description: '志望レベルに合わせて目安偏差値を指定',
-                min: 35,
-                max: 80
+                description: '志望レベルに合わせて平均評定(1〜5)の目安を指定',
+                min: 1,
+                max: 5,
+                step: 0.1
             },
             {
                 field: '年間学費',
@@ -2028,7 +2029,7 @@ function getSortConfig(dataType) {
             { field: '学校名', label: '学校名' },
             { field: '学部名', label: '学部名' },
             { field: '学科名', label: '学科名' },
-            { field: '偏差値', label: '偏差値' },
+            { field: '偏差値', label: '平均評定（1〜5）' },
             { field: '年間学費', label: '年間学費' }
         ];
     }
@@ -2520,7 +2521,7 @@ function getCardDisplayData(item, dataType) {
         const faculty = getFieldValue(item, ['学部名']);
         const department = getFieldValue(item, ['学科名']);
         const tuition = formatCurrency(getFieldValue(item, ['年間学費', '初年度納入金', '学費']));
-        const deviation = formatDeviation(getFieldValue(item, ['偏差値', '評定']));
+        const averageRating = formatAverageRating(getFieldValue(item, ['偏差値', '評定']));
         const feature = truncateText(getFieldValue(item, ['特徴', '備考', '学校紹介', '汎用']));
         const exam = getFieldValue(item, ['選考方法']);
 
@@ -2530,7 +2531,7 @@ function getCardDisplayData(item, dataType) {
             image: getFieldValue(item, ['学校画像', '学校画像URL', '画像URL']),
             fields: [
                 { label: '所在地', value: prefecture || item['要録用所在地'] || '-' },
-                { label: '偏差値', value: deviation === '-' ? '情報なし' : deviation },
+                { label: '平均評定（1〜5）', value: averageRating === '-' ? '情報なし' : averageRating },
                 { label: '年間学費', value: tuition },
                 { label: '入試方法', value: exam || '-' }
             ],
@@ -2927,12 +2928,12 @@ function getDetailDisplayData(item, dataType) {
         const keyInfo = [];
         const schoolType = getFieldValue(item, ['校種']);
         const establishment = getFieldValue(item, ['国公私']);
-        const deviation = formatDeviation(getFieldValue(item, ['偏差値', '評定']));
+        const averageRating = formatAverageRating(getFieldValue(item, ['偏差値', '評定']));
         const tuition = formatCurrency(getFieldValue(item, ['年間学費', '初年度納入金', '学費']));
         const employment = formatPercentage(getFieldValue(item, ['就職率']));
         if (schoolType) keyInfo.push({ icon: '🎓', label: '校種', value: schoolType });
         if (establishment) keyInfo.push({ icon: '🏛️', label: '設置', value: establishment });
-        if (deviation !== '-') keyInfo.push({ icon: '📈', label: '偏差値', value: deviation });
+        if (averageRating !== '-') keyInfo.push({ icon: '📈', label: '平均評定（1〜5）', value: averageRating });
         if (tuition !== '-') keyInfo.push({ icon: '💸', label: '学費', value: tuition });
         if (employment !== '-') keyInfo.push({ icon: '💼', label: '就職率', value: employment });
 
@@ -2976,7 +2977,7 @@ function getDetailDisplayData(item, dataType) {
                         { label: '指定校推薦', value: item['指定校有無'] || '-' },
                         { label: '出願条件', value: item['出願条件'] || '-', multiline: true },
                         { label: '資格条件', value: item['出願条件(資格)'] || '-', multiline: true },
-                        { label: '評定平均', value: item['評定'] || '-', important: true },
+                        { label: '平均評定（1〜5）', value: item['評定'] || '-', important: true },
                         { label: '欠席基準', value: item['欠席'] || '-' },
                         { label: '試験日', value: formatExamDate(item) },
                         { label: '受付期間', value: item['受付期間'] || '-' }

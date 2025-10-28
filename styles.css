@@ -397,7 +397,10 @@ header h1 {
 
 .grouped-multi-select--group-only .multi-select-groups {
     max-height: none;
-    gap: 10px;
+    gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    align-items: flex-start;
 }
 
 .grouped-multi-select .multi-select-groups {
@@ -440,13 +443,14 @@ header h1 {
 }
 
 .grouped-multi-select--group-only .multi-select-group {
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border-color);
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-color);
 }
 
-.grouped-multi-select--group-only .multi-select-group:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
+.grouped-multi-select--group-only .multi-select-group-header {
+    margin-bottom: 0;
 }
 
 .grouped-multi-select .multi-select-option {

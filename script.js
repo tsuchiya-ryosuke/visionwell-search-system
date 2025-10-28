@@ -756,10 +756,11 @@ function restoreFilterSelections() {
         if (Array.isArray(value)) {
             const container = getGroupedMultiSelectContainer(field);
             if (container) {
-                const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-                checkboxes.forEach(checkbox => {
+                const optionCheckboxes = container.querySelectorAll('.multi-select-options input[type="checkbox"]');
+                optionCheckboxes.forEach(checkbox => {
                     checkbox.checked = value.includes(checkbox.value);
                 });
+                updateGroupedMultiSelectHeaderState(field);
             }
         } else if (value && typeof value === 'object') {
             const minInput = document.getElementById(`filter_${fieldId}_min`);
@@ -918,6 +919,7 @@ function createFilterHTML(filter, options = {}) {
         }
 
         case 'grouped_multi_select': {
+            const showGroupOnly = Boolean(filter.showGroupOnly);
             const groups = typeof filter.getOptions === 'function'
                 ? filter.getOptions()
                 : [];
@@ -959,31 +961,53 @@ function createFilterHTML(filter, options = {}) {
                 break;
             }
 
+            const containerClasses = ['grouped-multi-select'];
+            if (showGroupOnly) {
+                containerClasses.push('grouped-multi-select--group-only');
+            }
+
             html += `
-                <div class="grouped-multi-select" data-field="${filter.field}">
+                <div class="${containerClasses.join(' ')}" data-field="${filter.field}">
+                    ${showGroupOnly ? '' : `
                     <div class="multi-select-search">
                         <input type="text" id="filter_search_${fieldId}" placeholder="${escapeHtml(searchPlaceholder)}"
                                oninput="filterGroupedMultiSelectOptions('${filter.field}', this.value)">
-                    </div>
+                    </div>`}
                     <div class="multi-select-groups">
-                        ${groups.map(group => `
-                            <div class="multi-select-group">
-                                <div class="multi-select-group-header">${escapeHtml(group.label)}</div>
-                                <div class="multi-select-options">
-                                    ${(group.options || []).map(option => {
-                                        const safeValue = escapeHtml(option);
-                                        const isChecked = selectedValues.includes(option);
-                                        return `
-                                            <label class="multi-select-option">
-                                                <input type="checkbox" value="${safeValue}" ${isChecked ? 'checked' : ''}
-                                                       onchange="toggleMultiSelectOption('${filter.field}', this.value, this.checked)">
-                                                <span>${safeValue}</span>
-                                            </label>
-                                        `;
-                                    }).join('')}
+                        ${groups.map(group => {
+                            const encodedGroupOptions = encodeURIComponent(JSON.stringify(group.options || []));
+                            const groupClasses = ['multi-select-group'];
+                            if (showGroupOnly) {
+                                groupClasses.push('multi-select-group--group-only');
+                            }
+                            const optionContainerClasses = ['multi-select-options'];
+                            if (showGroupOnly) {
+                                optionContainerClasses.push('multi-select-options--hidden');
+                            }
+                            return `
+                                <div class="${groupClasses.join(' ')}" data-group-label="${escapeHtml(group.label)}">
+                                    <label class="multi-select-group-header">
+                                        <input type="checkbox" class="multi-select-group-toggle"
+                                               data-group-options="${encodedGroupOptions}"
+                                               onchange="toggleMultiSelectGroup('${filter.field}', this)">
+                                        <span>${escapeHtml(group.label)}</span>
+                                    </label>
+                                    <div class="${optionContainerClasses.join(' ')}">
+                                        ${(group.options || []).map(option => {
+                                            const safeValue = escapeHtml(option);
+                                            const isChecked = selectedValues.includes(option);
+                                            return `
+                                                <label class="multi-select-option">
+                                                    <input type="checkbox" value="${safeValue}" ${isChecked ? 'checked' : ''}
+                                                           onchange="toggleMultiSelectOption('${filter.field}', this.value, this.checked)">
+                                                    <span>${safeValue}</span>
+                                                </label>
+                                            `;
+                                        }).join('')}
+                                    </div>
                                 </div>
-                            </div>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </div>
                 </div>
             `;
@@ -1238,6 +1262,31 @@ function getGroupedMultiSelectContainer(field) {
         .find(container => container.dataset.field === field) || null;
 }
 
+function updateGroupedMultiSelectHeaderState(field) {
+    const container = getGroupedMultiSelectContainer(field);
+    if (!container) {
+        return;
+    }
+
+    container.querySelectorAll('.multi-select-group').forEach(groupElement => {
+        const headerCheckbox = groupElement.querySelector('.multi-select-group-toggle');
+        if (!headerCheckbox) {
+            return;
+        }
+
+        const optionCheckboxes = Array.from(groupElement.querySelectorAll('.multi-select-options input[type="checkbox"]'));
+        if (optionCheckboxes.length === 0) {
+            headerCheckbox.checked = false;
+            headerCheckbox.indeterminate = false;
+            return;
+        }
+
+        const checkedCount = optionCheckboxes.filter(checkbox => checkbox.checked).length;
+        headerCheckbox.checked = checkedCount > 0 && checkedCount === optionCheckboxes.length;
+        headerCheckbox.indeterminate = checkedCount > 0 && checkedCount < optionCheckboxes.length;
+    });
+}
+
 function toggleMultiSelectOption(field, value, isChecked) {
     const normalizedValue = value;
     const currentSelections = Array.isArray(currentFilters[field]) ? [...currentFilters[field]] : [];
@@ -1260,6 +1309,63 @@ function toggleMultiSelectOption(field, value, isChecked) {
         }
     }
 
+    updateGroupedMultiSelectHeaderState(field);
+    updateDependentFilters();
+    updateActiveFilterTags();
+    applyFiltersAndSearch();
+}
+
+function toggleMultiSelectGroup(field, checkboxElement) {
+    if (!checkboxElement) {
+        return;
+    }
+
+    const datasetValue = checkboxElement.dataset.groupOptions || '';
+    let options = [];
+
+    if (datasetValue) {
+        try {
+            const parsed = JSON.parse(decodeURIComponent(datasetValue));
+            if (Array.isArray(parsed)) {
+                options = parsed;
+            }
+        } catch (error) {
+            console.error('Failed to parse group options for field:', field, error);
+        }
+    }
+
+    if (options.length === 0) {
+        checkboxElement.checked = false;
+        checkboxElement.indeterminate = false;
+        return;
+    }
+
+    const shouldCheck = checkboxElement.checked;
+    const existingSelections = Array.isArray(currentFilters[field]) ? currentFilters[field] : [];
+    const selectionSet = new Set(existingSelections);
+
+    if (shouldCheck) {
+        options.forEach(option => selectionSet.add(option));
+    } else {
+        options.forEach(option => selectionSet.delete(option));
+    }
+
+    const updatedSelections = Array.from(selectionSet);
+    if (updatedSelections.length > 0) {
+        currentFilters[field] = updatedSelections;
+    } else {
+        delete currentFilters[field];
+    }
+
+    const groupElement = checkboxElement.closest('.multi-select-group');
+    if (groupElement) {
+        const optionCheckboxes = groupElement.querySelectorAll('.multi-select-options input[type="checkbox"]');
+        optionCheckboxes.forEach(optionCheckbox => {
+            optionCheckbox.checked = shouldCheck;
+        });
+    }
+
+    updateGroupedMultiSelectHeaderState(field);
     updateDependentFilters();
     updateActiveFilterTags();
     applyFiltersAndSearch();
@@ -1475,7 +1581,8 @@ function getFilterConfig(dataType) {
                 priority: 1,
                 description: '学びたい学部・系統名で絞り込み',
                 getOptions: () => getAcademicGroupedOptions('学部名'),
-                searchPlaceholder: '学部名を検索'
+                searchPlaceholder: '学部名を検索',
+                showGroupOnly: true
             },
             {
                 field: '学科名',
@@ -1484,16 +1591,8 @@ function getFilterConfig(dataType) {
                 priority: 1,
                 description: '気になる学科やコース名で検索',
                 getOptions: () => getAcademicGroupedOptions('学科名'),
-                searchPlaceholder: '学科・コース名を検索'
-            },
-            {
-                field: '選考方法',
-                label: '📝 入試方法',
-                type: 'grouped_multi_select',
-                priority: 1,
-                description: '一般・推薦・AOなど入試形式で絞り込み',
-                getOptions: () => getExamMethodGroupedOptions(),
-                searchPlaceholder: '入試方法を検索'
+                searchPlaceholder: '学科・コース名を検索',
+                showGroupOnly: true
             },
             {
                 field: '偏差値',

@@ -756,10 +756,11 @@ function restoreFilterSelections() {
         if (Array.isArray(value)) {
             const container = getGroupedMultiSelectContainer(field);
             if (container) {
-                const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-                checkboxes.forEach(checkbox => {
+                const optionCheckboxes = container.querySelectorAll('.multi-select-options input[type="checkbox"]');
+                optionCheckboxes.forEach(checkbox => {
                     checkbox.checked = value.includes(checkbox.value);
                 });
+                updateGroupedMultiSelectHeaderState(field);
             }
         } else if (value && typeof value === 'object') {
             const minInput = document.getElementById(`filter_${fieldId}_min`);
@@ -966,24 +967,32 @@ function createFilterHTML(filter, options = {}) {
                                oninput="filterGroupedMultiSelectOptions('${filter.field}', this.value)">
                     </div>
                     <div class="multi-select-groups">
-                        ${groups.map(group => `
-                            <div class="multi-select-group">
-                                <div class="multi-select-group-header">${escapeHtml(group.label)}</div>
-                                <div class="multi-select-options">
-                                    ${(group.options || []).map(option => {
-                                        const safeValue = escapeHtml(option);
-                                        const isChecked = selectedValues.includes(option);
-                                        return `
-                                            <label class="multi-select-option">
-                                                <input type="checkbox" value="${safeValue}" ${isChecked ? 'checked' : ''}
-                                                       onchange="toggleMultiSelectOption('${filter.field}', this.value, this.checked)">
-                                                <span>${safeValue}</span>
-                                            </label>
-                                        `;
-                                    }).join('')}
+                        ${groups.map(group => {
+                            const encodedGroupOptions = encodeURIComponent(JSON.stringify(group.options || []));
+                            return `
+                                <div class="multi-select-group" data-group-label="${escapeHtml(group.label)}">
+                                    <label class="multi-select-group-header">
+                                        <input type="checkbox" class="multi-select-group-toggle"
+                                               data-group-options="${encodedGroupOptions}"
+                                               onchange="toggleMultiSelectGroup('${filter.field}', this)">
+                                        <span>${escapeHtml(group.label)}</span>
+                                    </label>
+                                    <div class="multi-select-options">
+                                        ${(group.options || []).map(option => {
+                                            const safeValue = escapeHtml(option);
+                                            const isChecked = selectedValues.includes(option);
+                                            return `
+                                                <label class="multi-select-option">
+                                                    <input type="checkbox" value="${safeValue}" ${isChecked ? 'checked' : ''}
+                                                           onchange="toggleMultiSelectOption('${filter.field}', this.value, this.checked)">
+                                                    <span>${safeValue}</span>
+                                                </label>
+                                            `;
+                                        }).join('')}
+                                    </div>
                                 </div>
-                            </div>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </div>
                 </div>
             `;
@@ -1238,6 +1247,31 @@ function getGroupedMultiSelectContainer(field) {
         .find(container => container.dataset.field === field) || null;
 }
 
+function updateGroupedMultiSelectHeaderState(field) {
+    const container = getGroupedMultiSelectContainer(field);
+    if (!container) {
+        return;
+    }
+
+    container.querySelectorAll('.multi-select-group').forEach(groupElement => {
+        const headerCheckbox = groupElement.querySelector('.multi-select-group-toggle');
+        if (!headerCheckbox) {
+            return;
+        }
+
+        const optionCheckboxes = Array.from(groupElement.querySelectorAll('.multi-select-options input[type="checkbox"]'));
+        if (optionCheckboxes.length === 0) {
+            headerCheckbox.checked = false;
+            headerCheckbox.indeterminate = false;
+            return;
+        }
+
+        const checkedCount = optionCheckboxes.filter(checkbox => checkbox.checked).length;
+        headerCheckbox.checked = checkedCount > 0 && checkedCount === optionCheckboxes.length;
+        headerCheckbox.indeterminate = checkedCount > 0 && checkedCount < optionCheckboxes.length;
+    });
+}
+
 function toggleMultiSelectOption(field, value, isChecked) {
     const normalizedValue = value;
     const currentSelections = Array.isArray(currentFilters[field]) ? [...currentFilters[field]] : [];
@@ -1260,6 +1294,63 @@ function toggleMultiSelectOption(field, value, isChecked) {
         }
     }
 
+    updateGroupedMultiSelectHeaderState(field);
+    updateDependentFilters();
+    updateActiveFilterTags();
+    applyFiltersAndSearch();
+}
+
+function toggleMultiSelectGroup(field, checkboxElement) {
+    if (!checkboxElement) {
+        return;
+    }
+
+    const datasetValue = checkboxElement.dataset.groupOptions || '';
+    let options = [];
+
+    if (datasetValue) {
+        try {
+            const parsed = JSON.parse(decodeURIComponent(datasetValue));
+            if (Array.isArray(parsed)) {
+                options = parsed;
+            }
+        } catch (error) {
+            console.error('Failed to parse group options for field:', field, error);
+        }
+    }
+
+    if (options.length === 0) {
+        checkboxElement.checked = false;
+        checkboxElement.indeterminate = false;
+        return;
+    }
+
+    const shouldCheck = checkboxElement.checked;
+    const existingSelections = Array.isArray(currentFilters[field]) ? currentFilters[field] : [];
+    const selectionSet = new Set(existingSelections);
+
+    if (shouldCheck) {
+        options.forEach(option => selectionSet.add(option));
+    } else {
+        options.forEach(option => selectionSet.delete(option));
+    }
+
+    const updatedSelections = Array.from(selectionSet);
+    if (updatedSelections.length > 0) {
+        currentFilters[field] = updatedSelections;
+    } else {
+        delete currentFilters[field];
+    }
+
+    const groupElement = checkboxElement.closest('.multi-select-group');
+    if (groupElement) {
+        const optionCheckboxes = groupElement.querySelectorAll('.multi-select-options input[type="checkbox"]');
+        optionCheckboxes.forEach(optionCheckbox => {
+            optionCheckbox.checked = shouldCheck;
+        });
+    }
+
+    updateGroupedMultiSelectHeaderState(field);
     updateDependentFilters();
     updateActiveFilterTags();
     applyFiltersAndSearch();

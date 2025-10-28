@@ -404,10 +404,19 @@ header h1 {
 }
 
 .grouped-multi-select .multi-select-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary);
     margin-bottom: 6px;
+    cursor: pointer;
+}
+
+.grouped-multi-select .multi-select-group-header input {
+    width: auto;
+    margin: 0;
 }
 
 .grouped-multi-select .multi-select-options {

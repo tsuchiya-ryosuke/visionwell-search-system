@@ -919,6 +919,7 @@ function createFilterHTML(filter, options = {}) {
         }
 
         case 'grouped_multi_select': {
+            const showGroupOnly = Boolean(filter.showGroupOnly);
             const groups = typeof filter.getOptions === 'function'
                 ? filter.getOptions()
                 : [];
@@ -960,24 +961,38 @@ function createFilterHTML(filter, options = {}) {
                 break;
             }
 
+            const containerClasses = ['grouped-multi-select'];
+            if (showGroupOnly) {
+                containerClasses.push('grouped-multi-select--group-only');
+            }
+
             html += `
-                <div class="grouped-multi-select" data-field="${filter.field}">
+                <div class="${containerClasses.join(' ')}" data-field="${filter.field}">
+                    ${showGroupOnly ? '' : `
                     <div class="multi-select-search">
                         <input type="text" id="filter_search_${fieldId}" placeholder="${escapeHtml(searchPlaceholder)}"
                                oninput="filterGroupedMultiSelectOptions('${filter.field}', this.value)">
-                    </div>
+                    </div>`}
                     <div class="multi-select-groups">
                         ${groups.map(group => {
                             const encodedGroupOptions = encodeURIComponent(JSON.stringify(group.options || []));
+                            const groupClasses = ['multi-select-group'];
+                            if (showGroupOnly) {
+                                groupClasses.push('multi-select-group--group-only');
+                            }
+                            const optionContainerClasses = ['multi-select-options'];
+                            if (showGroupOnly) {
+                                optionContainerClasses.push('multi-select-options--hidden');
+                            }
                             return `
-                                <div class="multi-select-group" data-group-label="${escapeHtml(group.label)}">
+                                <div class="${groupClasses.join(' ')}" data-group-label="${escapeHtml(group.label)}">
                                     <label class="multi-select-group-header">
                                         <input type="checkbox" class="multi-select-group-toggle"
                                                data-group-options="${encodedGroupOptions}"
                                                onchange="toggleMultiSelectGroup('${filter.field}', this)">
                                         <span>${escapeHtml(group.label)}</span>
                                     </label>
-                                    <div class="multi-select-options">
+                                    <div class="${optionContainerClasses.join(' ')}">
                                         ${(group.options || []).map(option => {
                                             const safeValue = escapeHtml(option);
                                             const isChecked = selectedValues.includes(option);
@@ -1566,7 +1581,8 @@ function getFilterConfig(dataType) {
                 priority: 1,
                 description: '学びたい学部・系統名で絞り込み',
                 getOptions: () => getAcademicGroupedOptions('学部名'),
-                searchPlaceholder: '学部名を検索'
+                searchPlaceholder: '学部名を検索',
+                showGroupOnly: true
             },
             {
                 field: '学科名',
@@ -1575,16 +1591,8 @@ function getFilterConfig(dataType) {
                 priority: 1,
                 description: '気になる学科やコース名で検索',
                 getOptions: () => getAcademicGroupedOptions('学科名'),
-                searchPlaceholder: '学科・コース名を検索'
-            },
-            {
-                field: '選考方法',
-                label: '📝 入試方法',
-                type: 'grouped_multi_select',
-                priority: 1,
-                description: '一般・推薦・AOなど入試形式で絞り込み',
-                getOptions: () => getExamMethodGroupedOptions(),
-                searchPlaceholder: '入試方法を検索'
+                searchPlaceholder: '学科・コース名を検索',
+                showGroupOnly: true
             },
             {
                 field: '偏差値',

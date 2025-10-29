@@ -435,7 +435,7 @@ header h1 {
 .grouped-multi-select .multi-select-options {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 6px 12px;
+    gap: 10px 12px;
 }
 
 .grouped-multi-select--group-only .multi-select-options,
@@ -458,18 +458,65 @@ header h1 {
 }
 
 .grouped-multi-select .multi-select-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 100%;
     font-size: 12px;
     color: var(--text-color);
+    cursor: pointer;
 }
-
 .grouped-multi-select .multi-select-option input {
-    width: auto;
-    margin-top: 2px;
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
 }
-
+.grouped-multi-select .multi-select-option span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 16px;
+    border: 1.5px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-weight: 600;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.grouped-multi-select .multi-select-option span::before {
+    content: '';
+    display: inline-block;
+    font-size: 0.85em;
+    transform: scale(0.6);
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.grouped-multi-select .multi-select-option input:checked + span::before {
+    content: '✓';
+    transform: scale(1);
+    opacity: 1;
+}
+.grouped-multi-select .multi-select-option:hover span {
+    border-color: var(--primary-color);
+    background: rgba(52, 152, 219, 0.08);
+    box-shadow: 0 6px 18px rgba(52, 152, 219, 0.15);
+}
+.grouped-multi-select .multi-select-option input:checked + span {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #ffffff;
+    box-shadow: 0 8px 20px rgba(52, 152, 219, 0.25);
+}
+.grouped-multi-select .multi-select-option input:focus-visible + span {
+    outline: 3px solid rgba(52, 152, 219, 0.35);
+    outline-offset: 2px;
+}
 .grouped-multi-select .empty-options {
     font-size: 12px;
     color: var(--text-secondary);

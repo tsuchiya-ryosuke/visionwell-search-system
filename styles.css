@@ -253,7 +253,7 @@ header h1 {
 }
 
 .filter-field select,
-.filter-field input {
+.filter-field input:not([type="checkbox"]):not([type="radio"]) {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid var(--border-color);

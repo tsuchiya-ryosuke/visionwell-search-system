@@ -21,6 +21,8 @@ const DATASET_LABELS = {
     school: '進学'
 };
 
+const DEFAULT_PREFECTURE = '愛知県';
+
 function generateMediumCodes(start, end) {
     const codes = [];
     for (let i = start; i <= end; i++) {
@@ -1821,15 +1823,6 @@ function getFilterConfig(dataType) {
                 placeholder: '都道府県を選択'
             },
             {
-                field: '所在地(市区町村)',
-                label: '🏙️ 市区町村',
-                type: 'prefecture_city',
-                priority: 1,
-                description: '選択した都道府県内の市区町村を選んでください',
-                dependsOn: '都道府県',
-                placeholder: '市区町村を選択'
-            },
-            {
                 field: '校種',
                 label: '🎓 学校種別',
                 type: 'select',
@@ -3212,15 +3205,21 @@ function applyDataset(type) {
     sortOrder = 'asc';
     currentPage = 1;
 
+    const normalizedDefaultPrefecture = normalizePrefectureName(DEFAULT_PREFECTURE);
+    const hasDefaultPrefecture = data.some(row => normalizePrefectureName(row['都道府県']) === normalizedDefaultPrefecture);
+    if (hasDefaultPrefecture) {
+        currentFilters['都道府県'] = DEFAULT_PREFECTURE;
+    }
+
     if (elements.searchInput) {
         elements.searchInput.value = '';
         elements.searchInput.placeholder = type === 'job'
             ? '企業名や職種、気になるキーワードで検索...'
             : '学校名や特徴で検索...';
     }
-    updateActiveFilterTags();
 
     setupDataView();
+    updateActiveFilterTags();
     if (elements.dataSection) {
         elements.dataSection.style.display = 'block';
     }

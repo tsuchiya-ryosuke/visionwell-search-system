@@ -1861,16 +1861,6 @@ function getFilterConfig(dataType) {
                 step: 0.1
             },
             {
-                field: '年間学費',
-                label: '💸 年間学費',
-                type: 'range',
-                priority: 2,
-                description: '年間にかかる学費の目安を入力',
-                min: 0,
-                max: 2000000,
-                step: 50000
-            },
-            {
                 field: '人数枠',
                 label: '👥 募集人数',
                 type: 'range',
@@ -2022,8 +2012,7 @@ function getSortConfig(dataType) {
             { field: '学校名', label: '学校名' },
             { field: '学部名', label: '学部名' },
             { field: '学科名', label: '学科名' },
-            { field: '偏差値', label: '平均評定（1〜5）' },
-            { field: '年間学費', label: '年間学費' }
+            { field: '偏差値', label: '平均評定（1〜5）' }
         ];
     }
 }
@@ -2513,7 +2502,6 @@ function getCardDisplayData(item, dataType) {
         const prefecture = getFieldValue(item, ['都道府県']);
         const faculty = getFieldValue(item, ['学部名']);
         const department = getFieldValue(item, ['学科名']);
-        const tuition = formatCurrency(getFieldValue(item, ['年間学費', '初年度納入金', '学費']));
         const averageRating = formatAverageRating(getFieldValue(item, ['偏差値', '評定']));
         const feature = truncateText(getFieldValue(item, ['特徴', '備考', '学校紹介', '汎用']));
         const exam = getFieldValue(item, ['選考方法']);
@@ -2525,7 +2513,6 @@ function getCardDisplayData(item, dataType) {
             fields: [
                 { label: '所在地', value: prefecture || item['要録用所在地'] || '-' },
                 { label: '平均評定（1〜5）', value: averageRating === '-' ? '情報なし' : averageRating },
-                { label: '年間学費', value: tuition },
                 { label: '入試方法', value: exam || '-' }
             ],
             description: feature,
@@ -2922,12 +2909,10 @@ function getDetailDisplayData(item, dataType) {
         const schoolType = getFieldValue(item, ['校種']);
         const establishment = getFieldValue(item, ['国公私']);
         const averageRating = formatAverageRating(getFieldValue(item, ['偏差値', '評定']));
-        const tuition = formatCurrency(getFieldValue(item, ['年間学費', '初年度納入金', '学費']));
         const employment = formatPercentage(getFieldValue(item, ['就職率']));
         if (schoolType) keyInfo.push({ icon: '🎓', label: '校種', value: schoolType });
         if (establishment) keyInfo.push({ icon: '🏛️', label: '設置', value: establishment });
         if (averageRating !== '-') keyInfo.push({ icon: '📈', label: '平均評定（1〜5）', value: averageRating });
-        if (tuition !== '-') keyInfo.push({ icon: '💸', label: '学費', value: tuition });
         if (employment !== '-') keyInfo.push({ icon: '💼', label: '就職率', value: employment });
 
         return {
@@ -2980,8 +2965,7 @@ function getDetailDisplayData(item, dataType) {
                     title: '💴 学費・奨学金',
                     icon: '💴',
                     fields: [
-                        { label: '年間学費', value: tuition, important: true },
-                        { label: '初年度納入金', value: formatCurrency(item['初年度納入金']) },
+                        { label: '初年度納入金', value: formatCurrency(item['初年度納入金']), important: true },
                         { label: '入学金', value: formatCurrency(item['入学金']) },
                         { label: '授業料', value: formatCurrency(item['授業料']) },
                         { label: '特待生制度', value: getFieldValue(item, ['特待生制度', '奨学金']) || '-' },
